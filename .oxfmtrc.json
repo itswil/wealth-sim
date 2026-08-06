@@ -1,0 +1,3 @@
+{
+  "ignorePatterns": ["dist/**", "*.min.js", "node_modules", ".husky"]
+}
