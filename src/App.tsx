@@ -10,7 +10,6 @@ interface StatItem {
   label: string;
   value: string;
   sub?: string;
-  accent?: boolean;
 }
 
 function StatCard({ items }: { items: StatItem[] }) {
@@ -20,11 +19,7 @@ function StatCard({ items }: { items: StatItem[] }) {
       <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase whitespace-nowrap">
         {item.label}
       </p>
-      <p
-        className={`mt-0.5 text-lg font-bold tabular-nums whitespace-nowrap ${
-          item.accent ? "text-sky-700" : "text-slate-800"
-        }`}
-      >
+      <p className="mt-0.5 text-lg font-bold text-slate-800 tabular-nums whitespace-nowrap">
         {item.value}
       </p>
       {item.sub ? <p className="mt-0.5 text-xs text-slate-400">{item.sub}</p> : null}
@@ -132,24 +127,24 @@ function App() {
         </aside>
 
         <section className="min-w-0 space-y-4">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-900 px-5 py-3 text-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
                 Year
               </span>
-              <span className="text-xl font-extrabold tabular-nums">
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums">
                 {formatNumber(stats.year)}
               </span>
               <span className="text-xs text-slate-400">
                 {hoverYear !== null ? "hovering" : "selected"}
               </span>
             </div>
-            <div className="h-8 w-px bg-slate-700" />
+            <div className="h-8 w-px bg-slate-200" />
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
                 Population
               </span>
-              <span className="text-xl font-extrabold tabular-nums">
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums">
                 {formatNumber(snapshots[0].sorted.length)}
               </span>
             </div>
@@ -157,7 +152,9 @@ function App() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 auto-rows-fr">
             <StatCard items={[{ label: "Total wealth", value: formatMoney(stats.total) }]} />
-            <StatCard items={[{ label: "Mean wealth", value: formatMoney(stats.mean), accent: true }]} />
+            <StatCard
+              items={[{ label: "Mean wealth", value: formatMoney(stats.mean) }]}
+            />
             <StatCard items={[{ label: "Median wealth", value: formatMoney(stats.median) }]} />
             <StatCard
               items={[
