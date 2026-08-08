@@ -152,9 +152,7 @@ function App() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 auto-rows-fr">
             <StatCard items={[{ label: "Total wealth", value: formatMoney(stats.total) }]} />
-            <StatCard
-              items={[{ label: "Mean wealth", value: formatMoney(stats.mean) }]}
-            />
+            <StatCard items={[{ label: "Mean wealth", value: formatMoney(stats.mean) }]} />
             <StatCard items={[{ label: "Median wealth", value: formatMoney(stats.median) }]} />
             <StatCard
               items={[
