@@ -321,7 +321,7 @@ export interface HistogramBin {
 
 export function buildHistogram(
   sorted: Float64Array,
-  binCount = 44,
+  binCount = 120,
 ): { bins: HistogramBin[]; negatives: number } {
   let negatives = 0;
   let minLog = Infinity;
