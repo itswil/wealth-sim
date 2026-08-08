@@ -6,26 +6,28 @@ import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./li
 
 const YEAR_PRESETS = [0, 25, 50, 100, 200, MAX_YEAR];
 
-function StatCard({
-  label,
-  value,
-  sub,
-  accent = false,
-}: {
+interface StatItem {
   label: string;
   value: string;
   sub?: string;
   accent?: boolean;
-}) {
+}
+
+function StatCard({ items }: { items: StatItem[] }) {
+  const item = items[0];
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">{label}</p>
-      <p
-        className={`mt-1 text-lg font-bold tabular-nums ${accent ? "text-sky-700" : "text-slate-800"}`}
-      >
-        {value}
+    <div className="h-full rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase whitespace-nowrap">
+        {item.label}
       </p>
-      {sub ? <p className="mt-0.5 text-xs text-slate-400">{sub}</p> : null}
+      <p
+        className={`mt-0.5 text-lg font-bold tabular-nums whitespace-nowrap ${
+          item.accent ? "text-sky-700" : "text-slate-800"
+        }`}
+      >
+        {item.value}
+      </p>
+      {item.sub ? <p className="mt-0.5 text-xs text-slate-400">{item.sub}</p> : null}
     </div>
   );
 }
@@ -130,34 +132,62 @@ function App() {
         </aside>
 
         <section className="min-w-0 space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-900 px-5 py-3 text-white shadow-sm">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                Year
+              </span>
+              <span className="text-xl font-extrabold tabular-nums">
+                {formatNumber(stats.year)}
+              </span>
+              <span className="text-xs text-slate-400">
+                {hoverYear !== null ? "hovering" : "selected"}
+              </span>
+            </div>
+            <div className="h-8 w-px bg-slate-700" />
+            <div className="flex items-baseline gap-2">
+              <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                Population
+              </span>
+              <span className="text-xl font-extrabold tabular-nums">
+                {formatNumber(snapshots[0].sorted.length)}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 auto-rows-fr">
+            <StatCard items={[{ label: "Total wealth", value: formatMoney(stats.total) }]} />
+            <StatCard items={[{ label: "Mean wealth", value: formatMoney(stats.mean), accent: true }]} />
+            <StatCard items={[{ label: "Median wealth", value: formatMoney(stats.median) }]} />
             <StatCard
-              label="Year"
-              value={formatNumber(stats.year)}
-              sub={hoverYear !== null ? "hovering" : "selected"}
+              items={[
+                {
+                  label: "Gini",
+                  value: stats.gini.toFixed(2),
+                  sub: "0 = equal, 1 = one person owns all",
+                },
+              ]}
             />
-            <StatCard label="Population" value={formatNumber(snapshots[0].sorted.length)} />
-            <StatCard label="Total wealth" value={formatMoney(stats.total)} />
-            <StatCard label="Mean wealth" value={formatMoney(stats.mean)} accent />
-            <StatCard label="Median wealth" value={formatMoney(stats.median)} />
             <StatCard
-              label="Gini"
-              value={stats.gini.toFixed(2)}
-              sub="0 = equal, 1 = one person owns all"
+              items={[
+                {
+                  label: "Top 1% share",
+                  value: formatPercent(stats.top1Share),
+                  sub:
+                    stats.median > 0
+                      ? `${formatMultiplier(stats.top1Avg / stats.median)} median wealth`
+                      : undefined,
+                },
+              ]}
             />
             <StatCard
-              label="Top 1% share"
-              value={formatPercent(stats.top1Share)}
-              sub={
-                stats.median > 0
-                  ? `${formatMultiplier(stats.top1Avg / stats.median)} median wealth`
-                  : undefined
-              }
-            />
-            <StatCard
-              label="Bottom 50% share"
-              value={formatPercent(stats.bottom50Share)}
-              sub={stats.median > 0 ? `owns ${formatMoney(stats.bottom50Avg)} avg` : undefined}
+              items={[
+                {
+                  label: "Bottom 50% share",
+                  value: formatPercent(stats.bottom50Share),
+                  sub: stats.median > 0 ? `owns ${formatMoney(stats.bottom50Avg)} avg` : undefined,
+                },
+              ]}
             />
           </div>
 
@@ -230,7 +260,7 @@ function App() {
                 : `Year ${activeYear} · red = top 1%`
             }
           >
-            <WealthDistribution sorted={sorted} />
+            <WealthDistribution sorted={sorted} mean={stats.mean} median={stats.median} />
           </Card>
         </section>
       </main>

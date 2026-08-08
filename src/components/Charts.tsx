@@ -210,9 +210,11 @@ export function TimeSeriesChart({
 
 export interface DistributionProps {
   sorted: Float64Array;
+  mean: number;
+  median: number;
 }
 
-export function WealthDistribution({ sorted }: DistributionProps) {
+export function WealthDistribution({ sorted, mean, median }: DistributionProps) {
   const W = 820;
   const H = 320;
   const PL = 74;
@@ -300,16 +302,93 @@ export function WealthDistribution({ sorted }: DistributionProps) {
           fontSize={10}
           fill="#be123c"
           fontWeight={600}
+          paintOrder="stroke"
+          stroke="#ffffff"
+          strokeWidth={3}
+          strokeLinejoin="round"
         >
           top 1% →
         </text>
       ) : null}
+      {mean > 0 ? (
+        <line
+          x1={logX(mean)}
+          y1={PT}
+          x2={logX(mean)}
+          y2={H - PB}
+          stroke="#0284c7"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+        />
+      ) : null}
+      {median > 0 ? (
+        <line
+          x1={logX(median)}
+          y1={PT}
+          x2={logX(median)}
+          y2={H - PB}
+          stroke="#64748b"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+        />
+      ) : null}
+      {mean > 0 ? (
+        <text
+          x={Math.max(PL, logX(mean) - 4)}
+          y={PT + 12}
+          textAnchor="end"
+          fontSize={10}
+          fill="#0284c7"
+          fontWeight={600}
+          paintOrder="stroke"
+          stroke="#ffffff"
+          strokeWidth={3}
+          strokeLinejoin="round"
+        >
+          mean {formatMoney(mean)} →
+        </text>
+      ) : null}
+      {median > 0 ? (
+        <text
+          x={Math.max(PL, logX(median) - 4)}
+          y={PT + 26}
+          textAnchor="end"
+          fontSize={10}
+          fill="#64748b"
+          fontWeight={600}
+          paintOrder="stroke"
+          stroke="#ffffff"
+          strokeWidth={3}
+          strokeLinejoin="round"
+        >
+          median {formatMoney(median)} →
+        </text>
+      ) : null}
       {negatives > 0 ? (
-        <text x={PL} y={H - 8} fontSize={11} fill="#e11d48">
+        <text
+          x={PL}
+          y={H - 8}
+          fontSize={11}
+          fill="#e11d48"
+          paintOrder="stroke"
+          stroke="#ffffff"
+          strokeWidth={3}
+          strokeLinejoin="round"
+        >
           {negatives.toLocaleString()} in debt
         </text>
       ) : null}
-      <text x={PL + innerW} y={PT + 12} fontSize={11} fill="#94a3b8" textAnchor="end">
+      <text
+        x={PL + innerW}
+        y={H - 8}
+        fontSize={11}
+        fill="#94a3b8"
+        textAnchor="end"
+        paintOrder="stroke"
+        stroke="#ffffff"
+        strokeWidth={3}
+        strokeLinejoin="round"
+      >
         {n.toLocaleString()} people
       </text>
     </svg>
