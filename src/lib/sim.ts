@@ -237,7 +237,9 @@ export class Simulation {
     if (p.crashProbability > 0 && this.rng() < p.crashProbability) {
       const loss = p.crashSeverity * (0.5 + this.rng() * 0.5);
       for (let i = 0; i < n; i++) {
-        wealth[i] *= 1 - loss;
+        if (wealth[i] > 0) {
+          wealth[i] *= 1 - loss;
+        }
       }
     }
 

@@ -45,7 +45,7 @@ export interface TimeSeriesProps {
   onHoverYear: (year: number | null) => void;
 }
 
-const SERIES = [
+export const SERIES = [
   { key: "top1Avg" as const, label: "Top 1% avg", color: "#e11d48" },
   { key: "mean" as const, label: "Mean", color: "#0284c7" },
   { key: "median" as const, label: "Median", color: "#64748b" },
@@ -85,8 +85,8 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
     const lo = logScale ? Math.log10(floor) : minV;
     const hi = logScale ? Math.log10(Math.max(maxV, floor)) : maxV;
     const span = hi - lo || 1;
-    const y = (v: number) =>
-      PT + ((1 - (logScale ? Math.log10(Math.max(v, floor)) : v) - lo) / span) * innerH;
+    const transform = (v: number) => (logScale ? Math.log10(Math.max(v, floor)) : v);
+    const y = (v: number) => PT + (1 - (transform(v) - lo) / span) * innerH;
 
     const len = stats.length;
     const minYear = stats[0].year;

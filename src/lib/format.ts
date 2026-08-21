@@ -1,5 +1,5 @@
 function trimZero(s: string): string {
-  return s.endsWith(".0") ? s.slice(0, -2) : s;
+  return s.replace(/\.?0+$/, "");
 }
 
 export function formatMoney(v: number): string {

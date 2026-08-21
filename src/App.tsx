@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controls } from "./components/Controls";
-import { Card, TimeSeriesChart, WealthDistribution } from "./components/Charts";
+import { Card, TimeSeriesChart, WealthDistribution, SERIES } from "./components/Charts";
 import {
   DEFAULT_PARAMS,
   MAX_YEAR,
@@ -45,7 +45,7 @@ function App() {
   useEffect(() => {
     const t = setTimeout(() => {
       setSnapshots(simulate(params, seed));
-    }, 120);
+    }, 50);
     return () => clearTimeout(t);
   }, [params, seed]);
 
@@ -82,12 +82,7 @@ function App() {
     setHoverYear(null);
   }, []);
 
-  const seriesLegend = [
-    { label: "Top 1% avg", color: "#e11d48" },
-    { label: "Mean", color: "#0284c7" },
-    { label: "Median", color: "#64748b" },
-    { label: "Bottom 50% avg", color: "#16a34a" },
-  ];
+  const seriesLegend = SERIES.map(({ label, color }) => ({ label, color }));
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
