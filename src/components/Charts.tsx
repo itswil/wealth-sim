@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, type MouseEvent, type ReactNode } from "react";
+import { memo, useMemo, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { YearStats } from "../lib/sim";
 import { buildHistogram, percentile } from "../lib/sim";
 import { formatMoney } from "../lib/format";
@@ -43,6 +43,7 @@ export interface TimeSeriesProps {
   selectedYear: number;
   hoverYear: number | null;
   onHoverYear: (year: number | null) => void;
+  onSelectYear?: (year: number) => void;
 }
 
 export const SERIES = [
@@ -58,6 +59,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   selectedYear,
   hoverYear,
   onHoverYear,
+  onSelectYear,
 }: TimeSeriesProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const W = 820;
@@ -136,17 +138,45 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
     onHoverYear(Math.max(minYear, Math.min(maxYear, yearAt)));
   };
 
+  const handleKeyDown = (e: KeyboardEvent<SVGSVGElement>) => {
+    if (!onSelectYear) return;
+    const step = e.shiftKey ? 10 : 1;
+    let next: number | null = null;
+    switch (e.key) {
+      case "ArrowLeft":
+      case "ArrowDown":
+        next = activeYear - step;
+        break;
+      case "ArrowRight":
+      case "ArrowUp":
+        next = activeYear + step;
+        break;
+      case "Home":
+        next = minYear;
+        break;
+      case "End":
+        next = maxYear;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    onSelectYear(Math.max(minYear, Math.min(maxYear, next)));
+  };
+
   const labelX = Math.min(W - PR - 56, Math.max(PL, activeX - 28));
 
   return (
     <svg
       ref={svgRef}
       viewBox={`0 0 ${W} ${H}`}
-      className="w-full cursor-crosshair touch-none"
+      className="w-full cursor-crosshair touch-none focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
       role="img"
-      aria-label="Wealth over time"
+      aria-label="Wealth over time. Use left and right arrow keys to change year, hold Shift to jump 10 years."
+      tabIndex={onSelectYear ? 0 : undefined}
       onMouseMove={handleMove}
       onMouseLeave={() => onHoverYear(null)}
+      onKeyDown={handleKeyDown}
     >
       {yTicks.map((v) => {
         const ty = y(v);

@@ -38,6 +38,7 @@ function App() {
   const [presetId, setPresetId] = useState("moderate");
   const [seed, setSeed] = useState(42);
   const [logScale, setLogScale] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [selectedYear, setSelectedYear] = useState(0);
   const [hoverYear, setHoverYear] = useState<number | null>(null);
   const [snapshots, setSnapshots] = useState(() => simulate(DEFAULT_PARAMS, 42));
@@ -48,6 +49,16 @@ function App() {
     }, 50);
     return () => clearTimeout(t);
   }, [params, seed]);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    if (selectedYear >= MAX_YEAR) {
+      setIsPlaying(false);
+      return;
+    }
+    const t = setTimeout(() => setSelectedYear((y) => Math.min(MAX_YEAR, y + 1)), 30);
+    return () => clearTimeout(t);
+  }, [isPlaying, selectedYear]);
 
   const activeYear = Math.min(snapshots.length - 1, hoverYear ?? selectedYear);
   const snap = snapshots[activeYear];
@@ -75,10 +86,27 @@ function App() {
     setSeed(Math.floor(Math.random() * 1e9));
     setSelectedYear(0);
     setHoverYear(null);
+    setIsPlaying(false);
   }, []);
 
   const handleReset = useCallback(() => {
     setSelectedYear(0);
+    setHoverYear(null);
+    setIsPlaying(false);
+  }, []);
+
+  const handleTogglePlay = useCallback(() => {
+    if (isPlaying) {
+      setIsPlaying(false);
+      return;
+    }
+    setHoverYear(null);
+    setSelectedYear((y) => (y >= MAX_YEAR ? 0 : y));
+    setIsPlaying(true);
+  }, [isPlaying]);
+
+  const handleSelectYear = useCallback((year: number) => {
+    setSelectedYear(year);
     setHoverYear(null);
   }, []);
 
@@ -197,6 +225,23 @@ function App() {
                   </span>
                 ))}
                 <div className="ml-auto flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleTogglePlay}
+                    aria-label={isPlaying ? "Pause animation" : "Play animation"}
+                    className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-600 text-white transition-colors hover:bg-sky-700"
+                  >
+                    {isPlaying ? (
+                      <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
+                        <rect x="1.5" y="1" width="3" height="10" rx="0.5" fill="currentColor" />
+                        <rect x="7.5" y="1" width="3" height="10" rx="0.5" fill="currentColor" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
+                        <path d="M2.5 1.2 L10.5 6 L2.5 10.8 Z" fill="currentColor" />
+                      </svg>
+                    )}
+                  </button>
                   <span className="text-xs text-slate-400">Jump to:</span>
                   {YEAR_PRESETS.map((y) => (
                     <button
@@ -241,6 +286,7 @@ function App() {
                 selectedYear={selectedYear}
                 hoverYear={hoverYear}
                 onHoverYear={setHoverYear}
+                onSelectYear={handleSelectYear}
               />
             </Card>
           </div>
