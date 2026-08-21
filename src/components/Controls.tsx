@@ -200,6 +200,36 @@ export const Controls = memo(function Controls({
           hint="Fixed yearly costs everyone must pay. Bites the poor hardest."
           onChange={(v) => onChange({ costOfLiving: v })}
         />
+        <Slider
+          label="Productivity growth"
+          value={params.productivityGrowth}
+          min={0}
+          max={0.05}
+          step={0.005}
+          display={`${(params.productivityGrowth * 100).toFixed(1)}% / yr`}
+          hint="Incomes and living costs grow each year."
+          onChange={(v) => onChange({ productivityGrowth: v })}
+        />
+        <Slider
+          label="Scale-dependent returns"
+          value={params.returnScale}
+          min={0}
+          max={1}
+          step={0.05}
+          display={params.returnScale.toFixed(2)}
+          hint="Bigger portfolios earn higher effective returns; debt costs more."
+          onChange={(v) => onChange({ returnScale: v })}
+        />
+        <Slider
+          label="Income volatility"
+          value={params.incomeShock}
+          min={0}
+          max={0.4}
+          step={0.01}
+          display={`${(params.incomeShock * 100).toFixed(0)}%`}
+          hint="Year-to-year random swings in individual income."
+          onChange={(v) => onChange({ incomeShock: v })}
+        />
       </Section>
 
       <Section title="Policy">
@@ -220,8 +250,18 @@ export const Controls = memo(function Controls({
           max={0.05}
           step={0.001}
           display={`${(params.wealthTaxRate * 100).toFixed(1)}% / yr`}
-          hint="Annual levy on positive wealth, removed from the model."
+          hint="Annual levy on positive wealth, rebated equally to everyone."
           onChange={(v) => onChange({ wealthTaxRate: v })}
+        />
+        <Slider
+          label="Borrowing limit"
+          value={params.maxDebtYears}
+          min={0}
+          max={10}
+          step={0.5}
+          display={`${params.maxDebtYears.toFixed(1)} yrs income`}
+          hint="Max debt in years of income. Spending is cut at the limit; beyond it, bankruptcy clears debts."
+          onChange={(v) => onChange({ maxDebtYears: v })}
         />
         <Slider
           label="Inheritance passed on"
@@ -230,7 +270,7 @@ export const Controls = memo(function Controls({
           max={1}
           step={0.01}
           display={`${Math.round(params.inheritanceRate * 100)}%`}
-          hint="Share of an estate inherited by heirs. Rest vanishes (estate tax)."
+          hint="Share of an estate inherited by the heir. Rest vanishes (estate tax)."
           onChange={(v) => onChange({ inheritanceRate: v })}
         />
       </Section>

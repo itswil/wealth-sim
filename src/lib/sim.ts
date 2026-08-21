@@ -12,6 +12,10 @@ export interface WorldParams {
   inheritanceRate: number;
   crashProbability: number;
   crashSeverity: number;
+  maxDebtYears: number;
+  returnScale: number;
+  incomeShock: number;
+  productivityGrowth: number;
 }
 
 export const DEFAULT_PARAMS: WorldParams = {
@@ -28,6 +32,10 @@ export const DEFAULT_PARAMS: WorldParams = {
   inheritanceRate: 1,
   crashProbability: 0.03,
   crashSeverity: 0.35,
+  maxDebtYears: 3,
+  returnScale: 0.5,
+  incomeShock: 0.1,
+  productivityGrowth: 0.01,
 };
 
 export interface InequalityPreset {
@@ -147,9 +155,24 @@ function careerFactor(age: number): number {
   return 0.6 + 0.9 * Math.exp(-((age - 45) * (age - 45)) / 512);
 }
 
+const RETIREMENT_AGE = 70;
+
+function employmentFactor(age: number): number {
+  return 1 / (1 + Math.exp((age - RETIREMENT_AGE) / 2));
+}
+
+function laborIncomeFactor(age: number): number {
+  return careerFactor(age) * employmentFactor(age);
+}
+
 function deathProbability(age: number): number {
+  if (age >= MAX_AGE) return 1;
   return Math.min(1, 0.02 * Math.exp((age - 75) / 7));
 }
+
+const MAX_AGE = 110;
+
+const INTERGENERATION_CORRELATION = 0.5;
 
 export interface WorldConfig {
   populationSize: number;
@@ -168,12 +191,16 @@ export class Simulation {
   currentStats: YearStats;
 
   private readonly sorted: Float64Array;
+  private readonly income: Float64Array;
   private readonly rng: () => number;
   private readonly gauss: () => number;
   private readonly sigmaI: number;
   private readonly incomeNorm: number;
   private readonly wealthNorm: number;
   private readonly rho = 0.7;
+
+  private meanIncome: number | null = null;
+  private costOfLiving: number | null = null;
 
   constructor(seed: number, world: WorldConfig) {
     this.world = world;
@@ -182,6 +209,7 @@ export class Simulation {
     this.incomeFactor = new Float64Array(this.n);
     this.age = new Float32Array(this.n);
     this.sorted = new Float64Array(this.n);
+    this.income = new Float64Array(this.n);
     this.rng = mulberry32(seed);
     this.gauss = makeGaussian(this.rng);
     this.sigmaI = world.incomeInequality;
@@ -209,56 +237,89 @@ export class Simulation {
   }
 
   step(p: WorldParams): void {
-    const { wealth, incomeFactor, age, n } = this;
+    const { wealth, incomeFactor, income, age, n } = this;
     this.year += 1;
+
+    if (this.meanIncome === null || this.costOfLiving === null) {
+      this.meanIncome = p.meanIncome;
+      this.costOfLiving = p.costOfLiving;
+    }
+    const growth = 1 + p.productivityGrowth;
+    this.meanIncome *= growth;
+    this.costOfLiving *= growth;
+
+    for (let i = 0; i < n; i++) {
+      const shock = Math.exp(p.incomeShock * this.gauss());
+      income[i] = this.meanIncome * incomeFactor[i] * laborIncomeFactor(age[i]) * shock;
+    }
 
     let taxPool = 0;
     for (let i = 0; i < n; i++) {
-      taxPool += p.incomeTaxRate * p.meanIncome * incomeFactor[i] * careerFactor(age[i]);
+      taxPool += p.incomeTaxRate * income[i];
     }
     const ubi = taxPool / n;
 
+    let wealthTaxPool = 0;
     for (let i = 0; i < n; i++) {
-      const income = p.meanIncome * incomeFactor[i] * careerFactor(age[i]);
-      wealth[i] *= 1 + p.returnRate;
-      wealth[i] += income;
-      wealth[i] -= p.costOfLiving;
-      const surplus = income - p.costOfLiving;
-      if (surplus > 0) {
-        wealth[i] -= surplus * (1 - p.savingsRate);
-      }
-      wealth[i] += ubi - p.incomeTaxRate * income;
+      const ref = Math.max(1, this.meanIncome);
+      const effReturn = p.returnRate * (1 + p.returnScale * Math.tanh(wealth[i] / ref));
+      wealth[i] *= 1 + effReturn;
+
       if (p.wealthTaxRate > 0 && wealth[i] > 0) {
-        wealth[i] -= wealth[i] * p.wealthTaxRate;
+        const levy = wealth[i] * p.wealthTaxRate;
+        wealthTaxPool += levy;
+        wealth[i] -= levy;
       }
+
+      const surplus = Math.max(0, income[i] - this.costOfLiving);
+      const desiredConsumption = this.costOfLiving + (1 - p.savingsRate) * surplus;
+
+      // Credit constraint: consumption is cut before debt can exceed the limit.
+      const tax = p.incomeTaxRate * income[i];
+      const debtLimit = p.maxDebtYears * Math.max(income[i], this.costOfLiving);
+      const spendable = wealth[i] + income[i] + ubi - tax - debtLimit;
+      const consumption = Math.max(0, Math.min(desiredConsumption, spendable));
+
+      wealth[i] += income[i] - tax - consumption + ubi;
+
+      if (-wealth[i] > debtLimit) {
+        // Bankruptcy: the limit shrank (income loss); debts are cleared.
+        wealth[i] = 0;
+      }
+
       age[i] += 1;
+    }
+
+    if (wealthTaxPool > 0) {
+      const rebate = wealthTaxPool / n;
+      for (let i = 0; i < n; i++) {
+        wealth[i] += rebate;
+      }
     }
 
     if (p.crashProbability > 0 && this.rng() < p.crashProbability) {
       const loss = p.crashSeverity * (0.5 + this.rng() * 0.5);
       for (let i = 0; i < n; i++) {
         if (wealth[i] > 0) {
-          wealth[i] *= 1 - loss;
+          const idiosyncratic = 0.5 + this.rng();
+          wealth[i] *= 1 - Math.min(1, loss * idiosyncratic);
         }
       }
     }
 
-    const estates: number[] = [];
+    const rhoIG = INTERGENERATION_CORRELATION;
+    const rho2IG = Math.sqrt(1 - rhoIG * rhoIG);
     for (let i = 0; i < n; i++) {
       if (this.rng() < deathProbability(age[i])) {
-        estates.push(wealth[i] * p.inheritanceRate);
-        wealth[i] = 0;
-        const z = this.gauss();
-        incomeFactor[i] = Math.exp(this.sigmaI * z) / this.incomeNorm;
+        // The respawned adult is the heir: dynastic, single-child inheritance.
+        const estate = wealth[i] * p.inheritanceRate;
+        const zParent =
+          (Math.log(Math.max(Number.MIN_VALUE, incomeFactor[i] * this.incomeNorm)) /
+            this.sigmaI) || 0;
+        const zChild = rhoIG * zParent + rho2IG * this.gauss();
+        incomeFactor[i] = Math.exp(this.sigmaI * zChild) / this.incomeNorm;
+        wealth[i] = estate;
         age[i] = 22 + this.rng() * 8;
-      }
-    }
-
-    if (n > 1) {
-      for (const estate of estates) {
-        if (estate <= 0) continue;
-        wealth[Math.floor(this.rng() * n)] += estate / 2;
-        wealth[Math.floor(this.rng() * n)] += estate / 2;
       }
     }
 
@@ -289,7 +350,7 @@ export class Simulation {
         weighted += (i + 1) * s[i];
       }
       const g = (2 * weighted) / (n * total) - (n + 1) / n;
-      gini = Number.isFinite(g) ? g : 0;
+      gini = Number.isFinite(g) ? Math.min(1, Math.max(0, g)) : 0;
     }
 
     const top1Count = Math.max(1, Math.round(0.01 * n));

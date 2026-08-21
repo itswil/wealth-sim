@@ -37,13 +37,17 @@ describe("simulate", () => {
       ...DEFAULT_PARAMS,
       populationSize: 500,
       meanIncome: 0,
+      productivityGrowth: 0,
+      incomeShock: 0,
       inheritanceRate: 1,
       wealthTaxRate: 0,
       incomeTaxRate: 0,
       costOfLiving: 0,
       savingsRate: 1,
       returnRate: 0,
+      returnScale: 0.5,
       crashProbability: 0.5,
+      maxDebtYears: 1000,
     };
     const snapshots = simulate(params, 3);
     let previousTotal = snapshots[0].stats.total;
@@ -54,10 +58,73 @@ describe("simulate", () => {
     }
   });
 
+  test("zero borrowing limit keeps everyone non-negative", () => {
+    const params: WorldParams = {
+      ...DEFAULT_PARAMS,
+      populationSize: 500,
+      maxDebtYears: 0,
+      costOfLiving: 30000,
+      meanIncome: 20000,
+    };
+    const snapshots = simulate(params, 5);
+    for (const snap of snapshots) {
+      for (let i = 0; i < snap.wealth.length; i++) {
+        expect(snap.wealth[i]).toBeGreaterThanOrEqual(-1e-9);
+      }
+    }
+  });
+
+  test("tighter credit limits raise the observed wealth floor", () => {
+    const runFloor = (maxDebtYears: number) => {
+      const params: WorldParams = { ...DEFAULT_PARAMS, populationSize: 500, maxDebtYears };
+      const snapshots = simulate(params, 7);
+      let floor = Infinity;
+      for (const snap of snapshots.slice(50)) {
+        for (const w of snap.wealth) floor = Math.min(floor, w);
+      }
+      return floor;
+    };
+    expect(runFloor(1)).toBeGreaterThan(runFloor(10));
+  });
+
   test("wealth tax reduces total wealth over time", () => {
     const withTax = simulate({ ...baseParams, wealthTaxRate: 0.05 }, 42);
     const withoutTax = simulate(baseParams, 42);
     expect(withTax[MAX_YEAR].stats.total).toBeLessThan(withoutTax[MAX_YEAR].stats.total);
+  });
+
+  test("productivity growth raises incomes over time", () => {
+    const growing = simulate(
+      { ...baseParams, productivityGrowth: 0.02, crashProbability: 0, returnRate: 0 },
+      42,
+    );
+    const static_ = simulate(baseParams, 42);
+    // With growth, mean wealth outpaces a world with identical luck but no growth.
+    expect(growing[MAX_YEAR].stats.mean).toBeGreaterThan(static_[MAX_YEAR].stats.mean);
+  });
+
+  test("retired elderly earn little or no labor income", () => {
+    // Indirect check: with no capital returns, savings, or inheritance and high
+    // costs, retirees drain to the credit limit while workers stay solvent.
+    const params: WorldParams = {
+      ...DEFAULT_PARAMS,
+      populationSize: 400,
+      initialWealth: 0,
+      returnRate: 0,
+      savingsRate: 0,
+      inheritanceRate: 0,
+      incomeShock: 0,
+      productivityGrowth: 0,
+      costOfLiving: 10000,
+      maxDebtYears: 1,
+      crashProbability: 0,
+    };
+    const snapshots = simulate(params, 80);
+    const last = snapshots[MAX_YEAR];
+    let inDebt = 0;
+    for (const w of last.wealth) if (w < -1) inDebt += 1;
+    expect(inDebt).toBeGreaterThan(0);
+    expect(inDebt).toBeLessThan(last.wealth.length);
   });
 });
 
