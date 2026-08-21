@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import type { WorldParams } from "../lib/sim";
 import { PRESETS } from "../lib/sim";
 import { formatMoney } from "../lib/format";
@@ -60,7 +60,7 @@ export interface ControlsProps {
   onReset: () => void;
 }
 
-export function Controls({
+export const Controls = memo(function Controls({
   params,
   presetId,
   onChange,
@@ -259,7 +259,7 @@ export function Controls({
       </Section>
     </div>
   );
-}
+});
 
 function formatPercentValue(v: number): string {
   return `${(v * 100).toFixed(0)}%`;

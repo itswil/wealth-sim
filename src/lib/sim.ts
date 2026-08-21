@@ -86,7 +86,7 @@ export interface YearStats {
 export interface SimulationSnapshot {
   year: number;
   stats: YearStats;
-  sorted: Float64Array;
+  wealth: Float64Array;
 }
 
 export const MAX_YEAR = 300;
@@ -204,7 +204,7 @@ export class Simulation {
     return {
       year: this.year,
       stats: this.currentStats,
-      sorted: this.sortedWealth().slice(),
+      wealth: this.wealth.slice(),
     };
   }
 
@@ -241,17 +241,22 @@ export class Simulation {
       }
     }
 
+    const estates: number[] = [];
     for (let i = 0; i < n; i++) {
       if (this.rng() < deathProbability(age[i])) {
-        const estate = wealth[i] * p.inheritanceRate;
-        if (estate > 0 && n > 1) {
-          wealth[Math.floor(this.rng() * n)] += estate / 2;
-          wealth[Math.floor(this.rng() * n)] += estate / 2;
-        }
+        estates.push(wealth[i] * p.inheritanceRate);
         wealth[i] = 0;
         const z = this.gauss();
         incomeFactor[i] = Math.exp(this.sigmaI * z) / this.incomeNorm;
         age[i] = 22 + this.rng() * 8;
+      }
+    }
+
+    if (n > 1) {
+      for (const estate of estates) {
+        if (estate <= 0) continue;
+        wealth[Math.floor(this.rng() * n)] += estate / 2;
+        wealth[Math.floor(this.rng() * n)] += estate / 2;
       }
     }
 
@@ -356,6 +361,12 @@ export function buildHistogram(
     bins[idx].count += 1;
   }
   return { bins, negatives };
+}
+
+export function sortWealth(wealth: Float64Array): Float64Array {
+  const sorted = wealth.slice();
+  sorted.sort();
+  return sorted;
 }
 
 export function percentile(sorted: Float64Array, pct: number): number {

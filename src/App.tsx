@@ -1,7 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controls } from "./components/Controls";
 import { Card, TimeSeriesChart, WealthDistribution } from "./components/Charts";
-import { DEFAULT_PARAMS, MAX_YEAR, PRESETS, simulate, type WorldParams } from "./lib/sim";
+import {
+  DEFAULT_PARAMS,
+  MAX_YEAR,
+  PRESETS,
+  simulate,
+  sortWealth,
+  type WorldParams,
+} from "./lib/sim";
 import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./lib/format";
 
 const YEAR_PRESETS = [0, 25, 50, 100, 200, MAX_YEAR];
@@ -12,8 +19,7 @@ interface StatItem {
   sub?: string;
 }
 
-function StatCard({ items }: { items: StatItem[] }) {
-  const item = items[0];
+function StatCard({ item }: { item: StatItem }) {
   return (
     <div className="h-full rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
       <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase whitespace-nowrap">
@@ -46,12 +52,15 @@ function App() {
   const activeYear = Math.min(snapshots.length - 1, hoverYear ?? selectedYear);
   const snap = snapshots[activeYear];
   const stats = snap.stats;
-  const sorted = snap.sorted;
-  const yearStats = snapshots.map((s) => s.stats);
+  const yearStats = useMemo(() => snapshots.map((s) => s.stats), [snapshots]);
+  const sorted = useMemo(() => sortWealth(snap.wealth), [snap.wealth]);
 
-  const handlePatch = (patch: Partial<WorldParams>) => setParams((p) => ({ ...p, ...patch }));
+  const handlePatch = useCallback(
+    (patch: Partial<WorldParams>) => setParams((p) => ({ ...p, ...patch })),
+    [],
+  );
 
-  const handlePreset = (id: string) => {
+  const handlePreset = useCallback((id: string) => {
     const preset = PRESETS.find((p) => p.id === id);
     if (!preset) return;
     setPresetId(id);
@@ -60,18 +69,18 @@ function App() {
       incomeInequality: preset.incomeInequality,
       initialInequality: preset.initialInequality,
     }));
-  };
+  }, []);
 
-  const handleNewWorld = () => {
+  const handleNewWorld = useCallback(() => {
     setSeed(Math.floor(Math.random() * 1e9));
     setSelectedYear(0);
     setHoverYear(null);
-  };
+  }, []);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setSelectedYear(0);
     setHoverYear(null);
-  };
+  }, []);
 
   const seriesLegend = [
     { label: "Top 1% avg", color: "#e11d48" },
@@ -145,44 +154,38 @@ function App() {
                 Population
               </span>
               <span className="text-xl font-extrabold text-slate-900 tabular-nums">
-                {formatNumber(snapshots[0].sorted.length)}
+                {formatNumber(snap.wealth.length)}
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 auto-rows-fr">
-            <StatCard items={[{ label: "Total wealth", value: formatMoney(stats.total) }]} />
-            <StatCard items={[{ label: "Mean wealth", value: formatMoney(stats.mean) }]} />
-            <StatCard items={[{ label: "Median wealth", value: formatMoney(stats.median) }]} />
+            <StatCard item={{ label: "Total wealth", value: formatMoney(stats.total) }} />
+            <StatCard item={{ label: "Mean wealth", value: formatMoney(stats.mean) }} />
+            <StatCard item={{ label: "Median wealth", value: formatMoney(stats.median) }} />
             <StatCard
-              items={[
-                {
-                  label: "Gini",
-                  value: stats.gini.toFixed(2),
-                  sub: "0 = equal, 1 = one person owns all",
-                },
-              ]}
+              item={{
+                label: "Gini",
+                value: stats.gini.toFixed(2),
+                sub: "0 = equal, 1 = one person owns all",
+              }}
             />
             <StatCard
-              items={[
-                {
-                  label: "Top 1% share",
-                  value: formatPercent(stats.top1Share),
-                  sub:
-                    stats.median > 0
-                      ? `${formatMultiplier(stats.top1Avg / stats.median)} median wealth`
-                      : undefined,
-                },
-              ]}
+              item={{
+                label: "Top 1% share",
+                value: formatPercent(stats.top1Share),
+                sub:
+                  stats.median > 0
+                    ? `${formatMultiplier(stats.top1Avg / stats.median)} median wealth`
+                    : undefined,
+              }}
             />
             <StatCard
-              items={[
-                {
-                  label: "Bottom 50% share",
-                  value: formatPercent(stats.bottom50Share),
-                  sub: stats.median > 0 ? `owns ${formatMoney(stats.bottom50Avg)} avg` : undefined,
-                },
-              ]}
+              item={{
+                label: "Bottom 50% share",
+                value: formatPercent(stats.bottom50Share),
+                sub: stats.median > 0 ? `owns ${formatMoney(stats.bottom50Avg)} avg` : undefined,
+              }}
             />
           </div>
 

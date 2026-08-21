@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent, type ReactNode } from "react";
+import { memo, useMemo, useRef, type MouseEvent, type ReactNode } from "react";
 import type { YearStats } from "../lib/sim";
 import { buildHistogram, percentile } from "../lib/sim";
 import { formatMoney } from "../lib/format";
@@ -45,7 +45,14 @@ export interface TimeSeriesProps {
   onHoverYear: (year: number | null) => void;
 }
 
-export function TimeSeriesChart({
+const SERIES = [
+  { key: "top1Avg" as const, label: "Top 1% avg", color: "#e11d48" },
+  { key: "mean" as const, label: "Mean", color: "#0284c7" },
+  { key: "median" as const, label: "Median", color: "#64748b" },
+  { key: "bottom50Avg" as const, label: "Bottom 50% avg", color: "#16a34a" },
+];
+
+export const TimeSeriesChart = memo(function TimeSeriesChart({
   stats,
   logScale,
   selectedYear,
@@ -62,21 +69,52 @@ export function TimeSeriesChart({
   const innerW = W - PL - PR;
   const innerH = H - PT - PB;
 
-  const series = [
-    { key: "top1Avg" as const, label: "Top 1% avg", color: "#e11d48" },
-    { key: "mean" as const, label: "Mean", color: "#0284c7" },
-    { key: "median" as const, label: "Median", color: "#64748b" },
-    { key: "bottom50Avg" as const, label: "Bottom 50% avg", color: "#16a34a" },
-  ];
+  const series = SERIES;
 
-  let minV = Infinity;
-  let maxV = -Infinity;
-  for (const s of stats) {
-    for (const { key } of series) {
-      minV = Math.min(minV, s[key]);
-      maxV = Math.max(maxV, s[key]);
+  const { paths, yTicks, xTicks, minV, maxV, minYear, maxYear } = useMemo(() => {
+    let minV = Infinity;
+    let maxV = -Infinity;
+    for (const s of stats) {
+      for (const { key } of series) {
+        minV = Math.min(minV, s[key]);
+        maxV = Math.max(maxV, s[key]);
+      }
     }
-  }
+
+    const floor = Math.max(maxV * 1e-4, 1);
+    const lo = logScale ? Math.log10(floor) : minV;
+    const hi = logScale ? Math.log10(Math.max(maxV, floor)) : maxV;
+    const span = hi - lo || 1;
+    const y = (v: number) =>
+      PT + ((1 - (logScale ? Math.log10(Math.max(v, floor)) : v) - lo) / span) * innerH;
+
+    const len = stats.length;
+    const minYear = stats[0].year;
+    const maxYear = stats[len - 1].year;
+    const x = (year: number) => PL + ((year - minYear) / Math.max(1, maxYear - minYear)) * innerW;
+
+    const paths = series.map(({ key }) => {
+      const pts = stats.map((s) => `${x(s.year).toFixed(1)},${y(s[key]).toFixed(1)}`);
+      return `M ${pts.join(" L ")}`;
+    });
+
+    const yTicks = logScale
+      ? (() => {
+          const ticks: number[] = [];
+          const loPow = Math.ceil(lo);
+          const hiPow = Math.floor(hi);
+          for (let p = loPow; p <= hiPow; p++) {
+            ticks.push(Math.pow(10, p));
+          }
+          if (ticks.length === 0) ticks.push(Math.pow(10, Math.round((lo + hi) / 2)));
+          return ticks;
+        })()
+      : niceTicks(minV, maxV, 5);
+
+    const xTicks = niceTicks(minYear, maxYear, 6);
+
+    return { paths, yTicks, xTicks, minV, maxV, minYear, maxYear };
+  }, [stats, logScale]);
 
   const floor = Math.max(maxV * 1e-4, 1);
   const lo = logScale ? Math.log10(floor) : minV;
@@ -84,31 +122,7 @@ export function TimeSeriesChart({
   const span = hi - lo || 1;
   const transform = (v: number) => (logScale ? Math.log10(Math.max(v, floor)) : v);
   const y = (v: number) => PT + (1 - (transform(v) - lo) / span) * innerH;
-
-  const len = stats.length;
-  const minYear = stats[0].year;
-  const maxYear = stats[len - 1].year;
   const x = (year: number) => PL + ((year - minYear) / Math.max(1, maxYear - minYear)) * innerW;
-
-  const paths = series.map(({ key }) => {
-    const pts = stats.map((s) => `${x(s.year).toFixed(1)},${y(s[key]).toFixed(1)}`);
-    return `M ${pts.join(" L ")}`;
-  });
-
-  const yTicks = logScale
-    ? (() => {
-        const ticks: number[] = [];
-        const loPow = Math.ceil(lo);
-        const hiPow = Math.floor(hi);
-        for (let p = loPow; p <= hiPow; p++) {
-          ticks.push(Math.pow(10, p));
-        }
-        if (ticks.length === 0) ticks.push(Math.pow(10, Math.round((lo + hi) / 2)));
-        return ticks;
-      })()
-    : niceTicks(minV, maxV, 5);
-
-  const xTicks = niceTicks(minYear, maxYear, 6);
 
   const activeYear = Math.max(minYear, Math.min(maxYear, hoverYear ?? selectedYear));
   const activeX = x(activeYear);
@@ -206,7 +220,7 @@ export function TimeSeriesChart({
       </text>
     </svg>
   );
-}
+});
 
 export interface DistributionProps {
   sorted: Float64Array;
@@ -214,7 +228,11 @@ export interface DistributionProps {
   median: number;
 }
 
-export function WealthDistribution({ sorted, mean, median }: DistributionProps) {
+export const WealthDistribution = memo(function WealthDistribution({
+  sorted,
+  mean,
+  median,
+}: DistributionProps) {
   const W = 820;
   const H = 320;
   const PL = 74;
@@ -224,7 +242,8 @@ export function WealthDistribution({ sorted, mean, median }: DistributionProps) 
   const innerW = W - PL - PR;
   const innerH = H - PT - PB;
 
-  const { bins, negatives } = buildHistogram(sorted);
+  const { bins, negatives } = useMemo(() => buildHistogram(sorted), [sorted]);
+  const p99 = useMemo(() => percentile(sorted, 0.99), [sorted]);
   const n = sorted.length;
   if (bins.length === 0) {
     return (
@@ -235,7 +254,6 @@ export function WealthDistribution({ sorted, mean, median }: DistributionProps) 
   }
 
   const maxCount = Math.max(1, ...bins.map((b) => b.count));
-  const p99 = percentile(sorted, 0.99);
   const binW = innerW / bins.length;
   const minLog = Math.log10(bins[0].min);
   const maxLog = Math.log10(bins[bins.length - 1].max);
@@ -393,6 +411,6 @@ export function WealthDistribution({ sorted, mean, median }: DistributionProps) 
       </text>
     </svg>
   );
-}
+});
 
 export { Card };
