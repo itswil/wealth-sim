@@ -7,10 +7,10 @@ export function formatMoney(v: number): string {
   const neg = v < 0;
   const a = Math.abs(v);
   let out: string;
-  if (a >= 1e12) out = `${trimZero((a / 1e12).toFixed(2))}T`;
-  else if (a >= 1e9) out = `${trimZero((a / 1e9).toFixed(2))}B`;
-  else if (a >= 1e6) out = `${trimZero((a / 1e6).toFixed(2))}M`;
-  else if (a >= 1e3) out = `${trimZero((a / 1e3).toFixed(1))}K`;
+  if (a >= 9.995e11) out = `${trimZero((a / 1e12).toFixed(2))}T`;
+  else if (a >= 9.995e8) out = `${trimZero((a / 1e9).toFixed(2))}B`;
+  else if (a >= 9.995e5) out = `${trimZero((a / 1e6).toFixed(2))}M`;
+  else if (a >= 999.5) out = `${trimZero((a / 1e3).toFixed(1))}K`;
   else out = `${Math.round(a)}`;
   return `${neg ? "-" : ""}$${out}`;
 }

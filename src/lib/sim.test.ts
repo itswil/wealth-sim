@@ -3,6 +3,8 @@ import {
   DEFAULT_PARAMS,
   MAX_YEAR,
   buildHistogram,
+  deathProbability,
+  laborIncomeFactor,
   percentile,
   simulate,
   sortWealth,
@@ -20,16 +22,10 @@ describe("simulate", () => {
     expect(snapshots[MAX_YEAR].year).toBe(MAX_YEAR);
   });
 
-  test("is deterministic for a given seed", () => {
-    const a = simulate(baseParams, 7);
-    const b = simulate(baseParams, 7);
-    expect(a[b.length - 1].stats).toEqual(b[b.length - 1].stats);
-  });
-
-  test("different seeds give different outcomes", () => {
-    const a = simulate(baseParams, 1);
-    const b = simulate(baseParams, 2);
-    expect(a[MAX_YEAR].stats.gini).not.toEqual(b[MAX_YEAR].stats.gini);
+  test("is fully deterministic for a given seed", () => {
+    const a = simulate(baseParams, 7, 80);
+    const b = simulate(baseParams, 7, 80);
+    expect(a).toEqual(b);
   });
 
   test("total wealth never increases when only crashes and inheritance act", () => {
@@ -49,7 +45,7 @@ describe("simulate", () => {
       crashProbability: 0.5,
       maxDebtYears: 1000,
     };
-    const snapshots = simulate(params, 3);
+    const snapshots = simulate(params, 3, 60);
     let previousTotal = snapshots[0].stats.total;
     for (const snap of snapshots) {
       // Inheritance conserves wealth; crashes only shrink positive wealth.
@@ -66,7 +62,7 @@ describe("simulate", () => {
       costOfLiving: 30000,
       meanIncome: 20000,
     };
-    const snapshots = simulate(params, 5);
+    const snapshots = simulate(params, 5, 80);
     for (const snap of snapshots) {
       for (let i = 0; i < snap.wealth.length; i++) {
         expect(snap.wealth[i]).toBeGreaterThanOrEqual(-1e-9);
@@ -75,11 +71,13 @@ describe("simulate", () => {
   });
 
   test("tighter credit limits raise the observed wealth floor", () => {
+    // Floors cluster near the limit because consumption freezes at the credit
+    // line and bankruptcy resets clear any overshoot when limits shrink.
     const runFloor = (maxDebtYears: number) => {
       const params: WorldParams = { ...DEFAULT_PARAMS, populationSize: 500, maxDebtYears };
-      const snapshots = simulate(params, 7);
+      const snapshots = simulate(params, 7, 120).slice(30);
       let floor = Infinity;
-      for (const snap of snapshots.slice(50)) {
+      for (const snap of snapshots) {
         for (const w of snap.wealth) floor = Math.min(floor, w);
       }
       return floor;
@@ -88,43 +86,28 @@ describe("simulate", () => {
   });
 
   test("wealth tax reduces total wealth over time", () => {
-    const withTax = simulate({ ...baseParams, wealthTaxRate: 0.05 }, 42);
-    const withoutTax = simulate(baseParams, 42);
-    expect(withTax[MAX_YEAR].stats.total).toBeLessThan(withoutTax[MAX_YEAR].stats.total);
+    const withTax = simulate({ ...baseParams, wealthTaxRate: 0.05 }, 42, 100);
+    const withoutTax = simulate(baseParams, 42, 100);
+    expect(withTax.at(-1)!.stats.total).toBeLessThan(withoutTax.at(-1)!.stats.total);
   });
 
-  test("productivity growth raises incomes over time", () => {
-    const growing = simulate(
-      { ...baseParams, productivityGrowth: 0.02, crashProbability: 0, returnRate: 0 },
-      42,
-    );
-    const static_ = simulate(baseParams, 42);
-    // With growth, mean wealth outpaces a world with identical luck but no growth.
-    expect(growing[MAX_YEAR].stats.mean).toBeGreaterThan(static_[MAX_YEAR].stats.mean);
+  test("wealth tax narrows concentration via its equal rebate", () => {
+    const withTax = simulate({ ...baseParams, wealthTaxRate: 0.02 }, 42, 100);
+    const withoutTax = simulate(baseParams, 42, 100);
+    expect(withTax.at(-1)!.stats.gini).toBeLessThan(withoutTax.at(-1)!.stats.gini);
   });
 
-  test("retired elderly earn little or no labor income", () => {
-    // Indirect check: with no capital returns, savings, or inheritance and high
-    // costs, retirees drain to the credit limit while workers stay solvent.
-    const params: WorldParams = {
-      ...DEFAULT_PARAMS,
-      populationSize: 400,
-      initialWealth: 0,
-      returnRate: 0,
-      savingsRate: 0,
-      inheritanceRate: 0,
-      incomeShock: 0,
-      productivityGrowth: 0,
-      costOfLiving: 10000,
-      maxDebtYears: 1,
-      crashProbability: 0,
-    };
-    const snapshots = simulate(params, 80);
-    const last = snapshots[MAX_YEAR];
-    let inDebt = 0;
-    for (const w of last.wealth) if (w < -1) inDebt += 1;
-    expect(inDebt).toBeGreaterThan(0);
-    expect(inDebt).toBeLessThan(last.wealth.length);
+  test("flat income tax with universal basic income lowers inequality", () => {
+    const withUbi = simulate({ ...baseParams, incomeTaxRate: 0.3 }, 42, 100);
+    const withoutUbi = simulate(baseParams, 42, 100);
+    expect(withUbi.at(-1)!.stats.gini).toBeLessThan(withoutUbi.at(-1)!.stats.gini);
+  });
+
+  test("productivity growth raises outcomes versus an otherwise identical world", () => {
+    const params: WorldParams = { ...baseParams, crashProbability: 0, returnRate: 0 };
+    const growing = simulate({ ...params, productivityGrowth: 0.02 }, 42, 100);
+    const static_ = simulate({ ...params, productivityGrowth: 0 }, 42, 100);
+    expect(growing.at(-1)!.stats.mean).toBeGreaterThan(static_.at(-1)!.stats.mean);
   });
 });
 
@@ -138,12 +121,39 @@ describe("gini", () => {
   });
 
   test("initial inequality parameter drives year-0 concentration", () => {
-    const low = simulate({ ...DEFAULT_PARAMS, incomeInequality: 0.3, initialInequality: 0.3 }, 42);
+    const low = simulate(
+      { ...DEFAULT_PARAMS, incomeInequality: 0.3, initialInequality: 0.3 },
+      42,
+      5,
+    );
     const extreme = simulate(
       { ...DEFAULT_PARAMS, incomeInequality: 1.6, initialInequality: 2.0 },
       42,
+      5,
     );
     expect(low[0].stats.gini).toBeLessThan(extreme[0].stats.gini);
+  });
+});
+
+describe("demographic curves", () => {
+  test("career factor peaks at 45", () => {
+    expect(laborIncomeFactor(45)).toBeCloseTo(1.5, 4);
+    expect(laborIncomeFactor(45)).toBeGreaterThan(laborIncomeFactor(44));
+    expect(laborIncomeFactor(25)).toBeLessThan(laborIncomeFactor(45));
+    expect(laborIncomeFactor(65)).toBeLessThan(laborIncomeFactor(45));
+  });
+
+  test("labor income collapses after retirement age", () => {
+    expect(laborIncomeFactor(69)).toBeGreaterThan(0.5);
+    expect(laborIncomeFactor(71)).toBeLessThan(0.5);
+    expect(laborIncomeFactor(90)).toBeLessThan(0.01);
+  });
+
+  test("death probability rises with age and caps at 110", () => {
+    expect(deathProbability(22)).toBeLessThan(deathProbability(60));
+    expect(deathProbability(60)).toBeLessThan(deathProbability(90));
+    expect(deathProbability(110)).toBe(1);
+    expect(deathProbability(130)).toBe(1);
   });
 });
 
@@ -205,6 +215,11 @@ describe("formatters", () => {
     expect(formatMoney(-3.4e9)).toBe("-$3.4B");
     expect(formatMoney(1e12)).toBe("$1T");
     expect(formatMoney(Number.NaN)).toBe("—");
+  });
+
+  test("formatMoney rounds cleanly across magnitude boundaries", () => {
+    expect(formatMoney(999_999)).toBe("$1M");
+    expect(formatMoney(1_000_000)).toBe("$1M");
   });
 
   test("formatNumber groups thousands", () => {

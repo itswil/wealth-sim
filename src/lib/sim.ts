@@ -151,7 +151,7 @@ function makeGaussian(rng: () => number): () => number {
   };
 }
 
-function careerFactor(age: number): number {
+export function careerFactor(age: number): number {
   return 0.6 + 0.9 * Math.exp(-((age - 45) * (age - 45)) / 512);
 }
 
@@ -161,11 +161,11 @@ function employmentFactor(age: number): number {
   return 1 / (1 + Math.exp((age - RETIREMENT_AGE) / 2));
 }
 
-function laborIncomeFactor(age: number): number {
+export function laborIncomeFactor(age: number): number {
   return careerFactor(age) * employmentFactor(age);
 }
 
-function deathProbability(age: number): number {
+export function deathProbability(age: number): number {
   if (age >= MAX_AGE) return 1;
   return Math.min(1, 0.02 * Math.exp((age - 75) / 7));
 }
@@ -277,7 +277,7 @@ export class Simulation {
       // Credit constraint: consumption is cut before debt can exceed the limit.
       const tax = p.incomeTaxRate * income[i];
       const debtLimit = p.maxDebtYears * Math.max(income[i], this.costOfLiving);
-      const spendable = wealth[i] + income[i] + ubi - tax - debtLimit;
+      const spendable = wealth[i] + income[i] + ubi - tax + debtLimit;
       const consumption = Math.max(0, Math.min(desiredConsumption, spendable));
 
       wealth[i] += income[i] - tax - consumption + ubi;
@@ -314,8 +314,8 @@ export class Simulation {
         // The respawned adult is the heir: dynastic, single-child inheritance.
         const estate = wealth[i] * p.inheritanceRate;
         const zParent =
-          (Math.log(Math.max(Number.MIN_VALUE, incomeFactor[i] * this.incomeNorm)) /
-            this.sigmaI) || 0;
+          Math.log(Math.max(Number.MIN_VALUE, incomeFactor[i] * this.incomeNorm)) / this.sigmaI ||
+          0;
         const zChild = rhoIG * zParent + rho2IG * this.gauss();
         incomeFactor[i] = Math.exp(this.sigmaI * zChild) / this.incomeNorm;
         wealth[i] = estate;
