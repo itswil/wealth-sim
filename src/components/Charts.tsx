@@ -1,4 +1,12 @@
-import { memo, useMemo, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import type { YearStats } from "../lib/sim";
 import { buildHistogram, percentile } from "../lib/sim";
 import { formatMoney } from "../lib/format";
@@ -62,6 +70,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   onSelectYear,
 }: TimeSeriesProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const keyboardYearRef = useRef<number | null>(null);
   const W = 820;
   const H = 320;
   const PL = 74;
@@ -145,11 +154,11 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
     switch (e.key) {
       case "ArrowLeft":
       case "ArrowDown":
-        next = activeYear - step;
+        next = (keyboardYearRef.current ?? activeYear) - step;
         break;
       case "ArrowRight":
       case "ArrowUp":
-        next = activeYear + step;
+        next = (keyboardYearRef.current ?? activeYear) + step;
         break;
       case "Home":
         next = minYear;
@@ -161,7 +170,19 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
         return;
     }
     e.preventDefault();
-    onSelectYear(Math.max(minYear, Math.min(maxYear, next)));
+    keyboardYearRef.current = Math.max(minYear, Math.min(maxYear, next));
+    onSelectYear(keyboardYearRef.current);
+  };
+
+  useEffect(() => {
+    if (keyboardYearRef.current === activeYear) {
+      keyboardYearRef.current = null;
+    }
+  }, [activeYear]);
+
+  const clearKeyboardYear = () => {
+    onHoverYear(null);
+    keyboardYearRef.current = null;
   };
 
   const labelX = Math.min(W - PR - 56, Math.max(PL, activeX - 28));
@@ -175,8 +196,9 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
       aria-label="Wealth over time. Use left and right arrow keys to change year, hold Shift to jump 10 years."
       tabIndex={onSelectYear ? 0 : undefined}
       onMouseMove={handleMove}
-      onMouseLeave={() => onHoverYear(null)}
+      onMouseLeave={clearKeyboardYear}
       onKeyDown={handleKeyDown}
+      onBlur={clearKeyboardYear}
     >
       {yTicks.map((v) => {
         const ty = y(v);

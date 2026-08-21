@@ -6,8 +6,9 @@ export default defineConfig({
   plugins: [react()],
   test: {
     browser: {
-      provider: playwright({ launchOptions: { headless: true } }),
+      provider: playwright(),
       enabled: true,
+      headless: true,
       instances: [{ browser: "chromium" }],
     },
   },
