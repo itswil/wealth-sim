@@ -22,7 +22,9 @@ interface CardProps {
 
 function Card({ title, children, className = "", sub }: CardProps) {
   return (
-    <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}>
+    <div
+      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${className}`}
+    >
       <div className="mb-2 flex items-baseline justify-between">
         <h3 className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">{title}</h3>
         {sub ? <p className="text-xs text-slate-400">{sub}</p> : null}
@@ -54,6 +56,7 @@ export interface TimeSeriesProps {
   hoverYear: number | null;
   onHoverYear: (year: number | null) => void;
   onSelectYear?: (year: number) => void;
+  dark?: boolean;
 }
 
 export const SERIES = [
@@ -70,6 +73,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   hoverYear,
   onHoverYear,
   onSelectYear,
+  dark = false,
 }: TimeSeriesProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const keyboardYearRef = useRef<number | null>(null);
@@ -83,6 +87,13 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   const innerW = W - PL - PR;
   const innerH = H - PT - PB;
   const narrow = W < 520;
+  const gridColor = dark ? "#334155" : "#e2e8f0";
+  const minorGridColor = dark ? "#263449" : "#f1f5f9";
+  const tickColor = "#94a3b8";
+  const activeLineColor = dark ? "#e2e8f0" : "#0f172a";
+  const markerFill = dark ? "#0f172a" : "#ffffff";
+  const badgeFill = dark ? "#e2e8f0" : "#0f172a";
+  const badgeText = dark ? "#0f172a" : "#ffffff";
 
   const series = SERIES;
 
@@ -240,8 +251,8 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
           const ty = y(v);
           return (
             <g key={v}>
-              <line x1={PL} y1={ty} x2={W - PR} y2={ty} stroke="#e2e8f0" strokeWidth={1} />
-              <text x={PL - 8} y={ty + 3.5} textAnchor="end" fontSize={11} fill="#94a3b8">
+              <line x1={PL} y1={ty} x2={W - PR} y2={ty} stroke={gridColor} strokeWidth={1} />
+              <text x={PL - 8} y={ty + 3.5} textAnchor="end" fontSize={11} fill={tickColor}>
                 {formatMoney(v)}
               </text>
             </g>
@@ -251,8 +262,8 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
           const tx = x(v);
           return (
             <g key={v}>
-              <line x1={tx} y1={PT} x2={tx} y2={H - PB} stroke="#f1f5f9" strokeWidth={1} />
-              <text x={tx} y={H - PB + 16} textAnchor="middle" fontSize={11} fill="#94a3b8">
+              <line x1={tx} y1={PT} x2={tx} y2={H - PB} stroke={minorGridColor} strokeWidth={1} />
+              <text x={tx} y={H - PB + 16} textAnchor="middle" fontSize={11} fill={tickColor}>
                 {v}
               </text>
             </g>
@@ -277,7 +288,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
           y1={PT}
           x2={activeX}
           y2={H - PB}
-          stroke="#0f172a"
+          stroke={activeLineColor}
           strokeWidth={1}
           strokeDasharray="4 3"
         />
@@ -290,24 +301,61 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
               cx={activeX}
               cy={y(rec[s.key])}
               r={3.5}
-              fill="#ffffff"
+              fill={markerFill}
               stroke={s.color}
               strokeWidth={2}
             />
           );
         })}
-        <rect x={labelX} y={PT} width={56} height={20} rx={5} fill="#0f172a" />
+        <rect x={labelX} y={PT} width={56} height={20} rx={5} fill={badgeFill} />
         <text
           x={labelX + 28}
           y={PT + 14}
           textAnchor="middle"
           fontSize={11}
           fontWeight={700}
-          fill="#ffffff"
+          fill={badgeText}
         >
           {activeYear}
         </text>
-        <rect x={PL} y={H - 6} width={innerW} height={4} rx={2} fill="#e2e8f0" opacity={0.7} />
+        <rect
+          x={PL}
+          y={H - 6}
+          width={innerW}
+          height={4}
+          rx={2}
+          fill={dark ? "#334155" : "#e2e8f0"}
+          opacity={0.7}
+        />
+        {(() => {
+          const lastRec = stats[stats.length - 1];
+          const entries = series
+            .map((s) => ({ key: s.key, label: s.label, color: s.color, y: y(lastRec[s.key]) }))
+            .sort((a, b) => a.y - b.y);
+          let prev = -Infinity;
+          for (const entry of entries) {
+            entry.y = Math.max(entry.y, prev + 13);
+            prev = entry.y;
+          }
+          return entries.map((entry) => (
+            <text
+              key={entry.key}
+              x={W - PR - 2}
+              y={Math.min(PT + innerH - 4, Math.max(PT + 10, entry.y + 3.5))}
+              textAnchor="end"
+              fontSize={10}
+              fontWeight={600}
+              fill={entry.color}
+              paintOrder="stroke"
+              stroke={markerFill}
+              strokeWidth={3}
+              strokeLinejoin="round"
+            >
+              {entry.label}
+            </text>
+          ));
+        })()}
+
         <rect
           x={PL}
           y={H - 6}
@@ -325,14 +373,19 @@ export interface DistributionProps {
   sorted: Float64Array;
   mean: number;
   median: number;
+  dark?: boolean;
 }
 
 export const WealthDistribution = memo(function WealthDistribution({
   sorted,
   mean,
   median,
+  dark = false,
 }: DistributionProps) {
   const [containerRef, W] = useMeasuredWidth();
+  const highlightColor = dark ? "#f8fafc" : "#0f172a";
+  const haloColor = dark ? "#0f172a" : "#ffffff";
+  const minorGridColor = dark ? "#263449" : "#f1f5f9";
   const H = 320;
   const PL = 74;
   const PR = 18;
@@ -349,7 +402,10 @@ export const WealthDistribution = memo(function WealthDistribution({
   const n = sorted.length;
   if (bins.length === 0) {
     return (
-      <div className="flex h-full min-h-[320px] items-center justify-center text-sm text-slate-400">
+      <div
+        ref={containerRef}
+        className="flex h-full min-h-[320px] items-center justify-center text-sm text-slate-400"
+      >
         Everyone is in debt — no positive wealth to chart.
       </div>
     );
@@ -406,7 +462,7 @@ export const WealthDistribution = memo(function WealthDistribution({
           const tx = logX(v);
           return (
             <g key={v}>
-              <line x1={tx} y1={PT} x2={tx} y2={H - PB} stroke="#f1f5f9" strokeWidth={1} />
+              <line x1={tx} y1={PT} x2={tx} y2={H - PB} stroke={minorGridColor} strokeWidth={1} />
               <text x={tx} y={H - PB + 16} textAnchor="middle" fontSize={11} fill="#94a3b8">
                 {formatMoney(v)}
               </text>
@@ -444,7 +500,7 @@ export const WealthDistribution = memo(function WealthDistribution({
                     y={PT}
                     width={binW}
                     height={innerH}
-                    fill="#0f172a"
+                    fill={highlightColor}
                     opacity={0.08}
                   />
                   <rect
@@ -486,7 +542,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             fill="#C2410C"
             fontWeight={600}
             paintOrder="stroke"
-            stroke="#ffffff"
+            stroke={haloColor}
             strokeWidth={3}
             strokeLinejoin="round"
           >
@@ -524,7 +580,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             fill="#0072B2"
             fontWeight={600}
             paintOrder="stroke"
-            stroke="#ffffff"
+            stroke={haloColor}
             strokeWidth={3}
             strokeLinejoin="round"
           >
@@ -540,7 +596,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             fill="#64748b"
             fontWeight={600}
             paintOrder="stroke"
-            stroke="#ffffff"
+            stroke={haloColor}
             strokeWidth={3}
             strokeLinejoin="round"
           >
@@ -554,7 +610,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             fontSize={11}
             fill="#D55E00"
             paintOrder="stroke"
-            stroke="#ffffff"
+            stroke={haloColor}
             strokeWidth={3}
             strokeLinejoin="round"
           >
@@ -568,7 +624,7 @@ export const WealthDistribution = memo(function WealthDistribution({
           fill="#94a3b8"
           textAnchor="end"
           paintOrder="stroke"
-          stroke="#ffffff"
+          stroke={haloColor}
           strokeWidth={3}
           strokeLinejoin="round"
         >

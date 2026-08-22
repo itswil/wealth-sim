@@ -19,8 +19,8 @@ function Slider({ label, value, min, max, step, display, hint, onChange }: Slide
   return (
     <label className="block">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-medium text-slate-700">{label}</span>
-        <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-xs font-semibold text-sky-700 tabular-nums">
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+        <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-xs font-semibold text-sky-700 dark:bg-sky-500/10 dark:text-sky-300 tabular-nums">
           {display}
         </span>
       </div>
@@ -50,10 +50,29 @@ interface SectionProps {
 
 function Section({ title, children }: SectionProps) {
   return (
-    <div className="space-y-3 border-t border-slate-200 px-4 py-4 first:border-t-0">
-      <h3 className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">{title}</h3>
-      {children}
-    </div>
+    <details
+      open
+      className="group border-t border-slate-200 px-4 py-3 first:border-t-0 dark:border-slate-700"
+    >
+      <summary className="flex cursor-pointer select-none list-none items-center justify-between [&::-webkit-details-marker]:hidden">
+        <h3 className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">{title}</h3>
+        <svg
+          className="h-3.5 w-3.5 text-slate-400 transition-transform group-open:rotate-180"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 6l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </summary>
+      <div className="space-y-3 pt-3">{children}</div>
+    </details>
   );
 }
 
@@ -75,9 +94,11 @@ export const Controls = memo(function Controls({
   onReset,
 }: ControlsProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:bg-slate-800">
       <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-sm font-bold text-slate-800">Simulation controls</h2>
+        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+          Simulation controls
+        </h2>
         <div className="flex gap-2">
           <button
             type="button"
@@ -89,7 +110,7 @@ export const Controls = memo(function Controls({
           <button
             type="button"
             onClick={onReset}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             Reset
           </button>
@@ -133,7 +154,7 @@ export const Controls = memo(function Controls({
               className={`rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors ${
                 presetId === p.id
                   ? "bg-sky-600 text-white"
-                  : "border border-slate-300 text-slate-600 hover:bg-slate-100"
+                  : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
               }`}
             >
               {p.label}

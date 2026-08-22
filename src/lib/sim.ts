@@ -151,14 +151,37 @@ function makeGaussian(rng: () => number): () => number {
   };
 }
 
+export const DEMOGRAPHICS = {
+  entryAgeMin: 22,
+  entryAgeSpan: 8,
+  careerPeakAge: 45,
+  careerBase: 0.6,
+  careerBoost: 0.9,
+  careerSpread: 512,
+  retirementAge: 70,
+  retirementSteepness: 2,
+  maxAge: 110,
+  deathRateAt75: 0.02,
+  deathAgeScale: 7,
+} as const;
+
+export const CORRELATIONS = {
+  incomeWealth: 0.7,
+  intergenerational: 0.5,
+} as const;
+
 export function careerFactor(age: number): number {
-  return 0.6 + 0.9 * Math.exp(-((age - 45) * (age - 45)) / 512);
+  const { careerBase, careerBoost, careerPeakAge, careerSpread } = DEMOGRAPHICS;
+  return (
+    careerBase +
+    careerBoost * Math.exp(-((age - careerPeakAge) * (age - careerPeakAge)) / careerSpread)
+  );
 }
 
-const RETIREMENT_AGE = 70;
+const RETIREMENT_AGE = DEMOGRAPHICS.retirementAge;
 
 function employmentFactor(age: number): number {
-  return 1 / (1 + Math.exp((age - RETIREMENT_AGE) / 2));
+  return 1 / (1 + Math.exp((age - RETIREMENT_AGE) / DEMOGRAPHICS.retirementSteepness));
 }
 
 export function laborIncomeFactor(age: number): number {
@@ -166,13 +189,12 @@ export function laborIncomeFactor(age: number): number {
 }
 
 export function deathProbability(age: number): number {
-  if (age >= MAX_AGE) return 1;
-  return Math.min(1, 0.02 * Math.exp((age - 75) / 7));
+  if (age >= DEMOGRAPHICS.maxAge) return 1;
+  return Math.min(
+    1,
+    DEMOGRAPHICS.deathRateAt75 * Math.exp((age - 75) / DEMOGRAPHICS.deathAgeScale),
+  );
 }
-
-const MAX_AGE = 110;
-
-const INTERGENERATION_CORRELATION = 0.5;
 
 export interface WorldConfig {
   populationSize: number;
@@ -197,7 +219,7 @@ export class Simulation {
   private readonly sigmaI: number;
   private readonly incomeNorm: number;
   private readonly wealthNorm: number;
-  private readonly rho = 0.7;
+  private readonly rho = CORRELATIONS.incomeWealth;
 
   private meanIncome: number | null = null;
   private costOfLiving: number | null = null;
@@ -223,7 +245,7 @@ export class Simulation {
       this.incomeFactor[i] = Math.exp(this.sigmaI * zI) / this.incomeNorm;
       this.wealth[i] =
         (world.initialWealth * Math.exp(world.initialInequality * zW)) / this.wealthNorm;
-      this.age[i] = 22 + this.rng() * 52;
+      this.age[i] = DEMOGRAPHICS.entryAgeMin + this.rng() * 52;
     }
     this.currentStats = this.computeStats();
   }
@@ -307,7 +329,7 @@ export class Simulation {
       }
     }
 
-    const rhoIG = INTERGENERATION_CORRELATION;
+    const rhoIG = CORRELATIONS.intergenerational;
     const rho2IG = Math.sqrt(1 - rhoIG * rhoIG);
     for (let i = 0; i < n; i++) {
       if (this.rng() < deathProbability(age[i])) {
@@ -319,7 +341,7 @@ export class Simulation {
         const zChild = rhoIG * zParent + rho2IG * this.gauss();
         incomeFactor[i] = Math.exp(this.sigmaI * zChild) / this.incomeNorm;
         wealth[i] = estate;
-        age[i] = 22 + this.rng() * 8;
+        age[i] = DEMOGRAPHICS.entryAgeMin + this.rng() * DEMOGRAPHICS.entryAgeSpan;
       }
     }
 

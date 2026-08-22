@@ -10,8 +10,60 @@ import {
   type WorldParams,
 } from "./lib/sim";
 import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./lib/format";
+import { useTheme } from "./hooks/use-theme";
 
 const YEAR_PRESETS = [0, 25, 50, 100, 200, MAX_YEAR];
+
+const URL_PARAM_RANGES: Record<keyof WorldParams, [number, number]> = {
+  populationSize: [50, 5000],
+  meanIncome: [20000, 200000],
+  incomeInequality: [0.1, 2],
+  initialWealth: [0, 200000],
+  initialInequality: [0.1, 2.5],
+  costOfLiving: [0, 50000],
+  returnRate: [0, 0.15],
+  savingsRate: [0, 0.3],
+  incomeTaxRate: [0, 0.8],
+  wealthTaxRate: [0, 0.05],
+  inheritanceRate: [0, 1],
+  crashProbability: [0, 0.25],
+  crashSeverity: [0, 0.8],
+  maxDebtYears: [0, 10],
+  returnScale: [0, 1],
+  incomeShock: [0, 0.4],
+  productivityGrowth: [0, 0.05],
+};
+
+function clampParam(key: keyof WorldParams, raw: string | null): number | null {
+  if (raw === null) return null;
+  const n = Number(raw);
+  const [min, max] = URL_PARAM_RANGES[key];
+  if (!Number.isFinite(n)) return null;
+  return Math.min(max, Math.max(min, n));
+}
+
+function readWorldFromUrl(): { params: Partial<WorldParams>; seed: number; year: number } | null {
+  if (typeof window === "undefined") return null;
+  const sp = new URLSearchParams(window.location.search);
+  if (![...sp.keys()].length) return null;
+  const params: Partial<WorldParams> = {};
+  let matched = false;
+  for (const key of Object.keys(URL_PARAM_RANGES) as (keyof WorldParams)[]) {
+    const value = clampParam(key, sp.get(key));
+    if (value !== null) {
+      params[key] = value;
+      matched = true;
+    }
+  }
+  if (!matched) return null;
+  const seedRaw = Number(sp.get("seed"));
+  const seed = Number.isInteger(seedRaw) && seedRaw >= 0 && seedRaw < 1e9 ? seedRaw : DEFAULT_SEED;
+  const yearRaw = Number(sp.get("year"));
+  const year = Number.isInteger(yearRaw) && yearRaw >= 0 ? Math.min(MAX_YEAR, yearRaw) : 0;
+  return { params, seed, year };
+}
+
+const DEFAULT_SEED = 42;
 
 interface StatItem {
   label: string;
@@ -21,11 +73,11 @@ interface StatItem {
 
 function StatCard({ item }: { item: StatItem }) {
   return (
-    <div className="h-full rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div className="h-full rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase whitespace-nowrap">
         {item.label}
       </p>
-      <p className="mt-0.5 text-lg font-bold text-slate-800 tabular-nums whitespace-nowrap">
+      <p className="mt-0.5 text-lg font-bold text-slate-800 tabular-nums whitespace-nowrap dark:text-slate-100">
         {item.value}
       </p>
       {item.sub ? <p className="mt-0.5 text-xs text-slate-400">{item.sub}</p> : null}
@@ -34,13 +86,18 @@ function StatCard({ item }: { item: StatItem }) {
 }
 
 function App() {
-  const [params, setParams] = useState<WorldParams>(DEFAULT_PARAMS);
-  const [seed, setSeed] = useState(42);
-  const [logScale, setLogScale] = useState(false);
+  const [isDark, toggleTheme] = useTheme();
+  const initialWorld = useMemo(readWorldFromUrl, []);
+  const [params, setParams] = useState<WorldParams>(() => ({
+    ...DEFAULT_PARAMS,
+    ...initialWorld?.params,
+  }));
+  const [seed, setSeed] = useState(() => initialWorld?.seed ?? DEFAULT_SEED);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(0);
+  const [selectedYear, setSelectedYear] = useState(() => initialWorld?.year ?? 0);
+  const [logScale, setLogScale] = useState(false);
   const [hoverYear, setHoverYear] = useState<number | null>(null);
-  const [snapshots, setSnapshots] = useState(() => simulate(DEFAULT_PARAMS, 42));
+  const [snapshots, setSnapshots] = useState(() => simulate(params, seed));
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -58,6 +115,14 @@ function App() {
     const t = setTimeout(() => setSelectedYear((y) => Math.min(MAX_YEAR, y + 1)), 30);
     return () => clearTimeout(t);
   }, [isPlaying, selectedYear]);
+
+  useEffect(() => {
+    const sp = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) sp.set(key, String(value));
+    sp.set("seed", String(seed));
+    sp.set("year", String(selectedYear));
+    window.history.replaceState(null, "", `?${sp.toString()}`);
+  }, [params, seed, selectedYear]);
 
   const activeYear = Math.min(snapshots.length - 1, hoverYear ?? selectedYear);
   const snap = snapshots[activeYear];
@@ -117,35 +182,62 @@ function App() {
   const seriesLegend = SERIES.map(({ label, color }) => ({ label, color }));
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
+      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6">
           <div className="min-w-0">
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
               Wealth Simulator
             </h1>
             <p className="hidden text-sm text-slate-500 sm:block">
               A fixed 300-year run. Hover the timeline or pick a year to inspect that year's wealth.
             </p>
           </div>
-          <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:w-auto">
-            <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">Year</span>
-            <input
-              type="range"
-              min={0}
-              max={MAX_YEAR}
-              step={1}
-              value={activeYear}
-              onChange={(e) => {
-                setSelectedYear(Number(e.target.value));
-                setHoverYear(null);
-              }}
-              className="w-full min-w-0 accent-sky-600 sm:w-48"
-              aria-label="Selected year"
-            />
-            <span className="w-10 shrink-0 text-right text-sm font-bold text-slate-800 tabular-nums">
-              {activeYear}
-            </span>
+          <div className="flex w-full items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              className="flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              {isDark ? (
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                  <circle cx="10" cy="10" r="4" />
+                  <path
+                    d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.4 1.4M14.6 14.6L16 16M16 4l-1.4 1.4M5.4 14.6L4 16"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                  <path d="M17 12.5A7.5 7.5 0 0 1 7.5 3a7.5 7.5 0 1 0 9.5 9.5Z" />
+                </svg>
+              )}
+            </button>
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:w-auto sm:flex-none">
+              <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                Year
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={MAX_YEAR}
+                step={1}
+                value={activeYear}
+                onChange={(e) => {
+                  setSelectedYear(Number(e.target.value));
+                  setHoverYear(null);
+                }}
+                className="w-full min-w-0 accent-sky-600 sm:w-48"
+                aria-label="Selected year"
+              />
+              <span className="w-10 shrink-0 text-right text-sm font-bold text-slate-800 tabular-nums dark:text-slate-100">
+                {activeYear}
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -163,24 +255,24 @@ function App() {
         </aside>
 
         <section className="min-w-0 space-y-4">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
                 Year
               </span>
-              <span className="text-xl font-extrabold text-slate-900 tabular-nums">
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums dark:text-slate-50">
                 {formatNumber(stats.year)}
               </span>
               <span className="text-xs text-slate-400">
                 {hoverYear !== null ? "hovering" : "selected"}
               </span>
             </div>
-            <div className="h-8 w-px bg-slate-200" />
+            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
             <div className="flex items-baseline gap-2">
               <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
                 Population
               </span>
-              <span className="text-xl font-extrabold text-slate-900 tabular-nums">
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums dark:text-slate-50">
                 {formatNumber(snap.wealth.length)}
               </span>
             </div>
@@ -222,7 +314,7 @@ function App() {
                 {seriesLegend.map((l) => (
                   <span
                     key={l.label}
-                    className="flex items-center gap-1.5 text-xs font-medium text-slate-600"
+                    className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
                     {l.label}
@@ -258,14 +350,16 @@ function App() {
                       className={`rounded-md px-1.5 py-0.5 text-xs font-semibold transition-colors ${
                         activeYear === y
                           ? "bg-sky-600 text-white"
-                          : "border border-slate-300 text-slate-600 hover:bg-slate-100"
+                          : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                       }`}
                     >
                       {y}
                     </button>
                   ))}
                   <label className="ml-1 flex cursor-pointer select-none items-center gap-2">
-                    <span className="text-xs font-medium text-slate-600">Log scale</span>
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                      Log scale
+                    </span>
                     <button
                       type="button"
                       role="switch"
@@ -284,7 +378,7 @@ function App() {
                   </label>
                 </div>
               </div>
-              <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2">
+              <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 dark:border-slate-700">
                 {SERIES.map((s) => (
                   <span
                     key={s.key}
@@ -303,6 +397,7 @@ function App() {
                 hoverYear={hoverYear}
                 onHoverYear={setHoverYear}
                 onSelectYear={handleSelectYear}
+                dark={isDark}
               />
             </Card>
           </div>
@@ -315,7 +410,12 @@ function App() {
                 : `Year ${activeYear} · red = top 1%`
             }
           >
-            <WealthDistribution sorted={sorted} mean={stats.mean} median={stats.median} />
+            <WealthDistribution
+              sorted={sorted}
+              mean={stats.mean}
+              median={stats.median}
+              dark={isDark}
+            />
           </Card>
         </section>
       </main>
