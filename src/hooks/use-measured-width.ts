@@ -7,6 +7,10 @@ export function useMeasuredWidth(minWidth = 320): [React.RefObject<HTMLDivElemen
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const update = () => {
+      setWidth(Math.max(minWidth, Math.round(el.clientWidth)));
+    };
+    update();
     const observer = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width ?? minWidth;
       setWidth(Math.max(minWidth, Math.round(w)));

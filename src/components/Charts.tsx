@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -306,6 +307,15 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
         >
           {activeYear}
         </text>
+        <rect x={PL} y={H - 6} width={innerW} height={4} rx={2} fill="#e2e8f0" opacity={0.7} />
+        <rect
+          x={PL}
+          y={H - 6}
+          width={Math.max(0, innerW * Math.min(1, Math.max(0, selectedYear / maxYear)))}
+          height={4}
+          rx={2}
+          fill="#0284c7"
+        />
       </svg>
     </div>
   );
@@ -330,6 +340,9 @@ export const WealthDistribution = memo(function WealthDistribution({
   const PB = 28;
   const innerW = W - PL - PR;
   const innerH = H - PT - PB;
+
+  const [hoverBin, setHoverBin] = useState<number | null>(null);
+  const histRef = useRef<SVGSVGElement | null>(null);
 
   const { bins, negatives } = useMemo(() => buildHistogram(sorted), [sorted]);
   const p99 = useMemo(() => percentile(sorted, 0.99), [sorted]);
@@ -362,9 +375,33 @@ export const WealthDistribution = memo(function WealthDistribution({
     return ticks;
   })();
 
+  const updateHoverBin = (clientX: number) => {
+    const svg = histRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const xPx = ((clientX - rect.left) / rect.width) * W;
+    if (xPx < PL || xPx > W - PR) {
+      setHoverBin(null);
+      return;
+    }
+    const idx = Math.floor(((xPx - PL) / innerW) * bins.length);
+    setHoverBin(Math.max(0, Math.min(bins.length - 1, idx)));
+  };
+
   return (
     <div ref={containerRef} className="w-full">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Wealth distribution">
+      <svg
+        ref={histRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full cursor-crosshair touch-pan-y select-none"
+        role="img"
+        aria-label="Wealth distribution"
+        onPointerDown={(e) => updateHoverBin(e.clientX)}
+        onPointerMove={(e) => {
+          if (e.pointerType === "mouse") updateHoverBin(e.clientX);
+        }}
+        onPointerLeave={() => setHoverBin(null)}
+      >
         {logTicks.map((v) => {
           const tx = logX(v);
           return (
@@ -387,10 +424,48 @@ export const WealthDistribution = memo(function WealthDistribution({
               width={Math.max(0.5, binW - 1)}
               height={PT + innerH - top}
               fill={isTop1 ? "#D55E00" : "#0072B2"}
-              opacity={isTop1 ? 0.85 : 0.75}
+              opacity={hoverBin === i ? 1 : isTop1 ? 0.85 : 0.75}
             />
           );
         })}
+        {hoverBin !== null && bins[hoverBin]
+          ? (() => {
+              const hb = bins[hoverBin];
+              const boxW = 150;
+              const boxH = 36;
+              const tx = Math.min(
+                W - PR - boxW - 2,
+                Math.max(PL + 2, barX(hoverBin) + binW / 2 - boxW / 2),
+              );
+              return (
+                <g>
+                  <rect
+                    x={barX(hoverBin)}
+                    y={PT}
+                    width={binW}
+                    height={innerH}
+                    fill="#0f172a"
+                    opacity={0.08}
+                  />
+                  <rect
+                    x={tx}
+                    y={PT + 2}
+                    width={boxW}
+                    height={boxH}
+                    rx={5}
+                    fill="#0f172a"
+                    opacity={0.92}
+                  />
+                  <text x={tx + 8} y={PT + 16} fontSize={10.5} fontWeight={600} fill="#ffffff">
+                    {formatMoney(hb.min)} – {formatMoney(hb.max)}
+                  </text>
+                  <text x={tx + 8} y={PT + 30} fontSize={10.5} fill="#cbd5e1">
+                    {hb.count.toLocaleString()} people
+                  </text>
+                </g>
+              );
+            })()
+          : null}
         {p99 > 0 ? (
           <line
             x1={logX(p99)}

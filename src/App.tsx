@@ -284,6 +284,18 @@ function App() {
                   </label>
                 </div>
               </div>
+              <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2">
+                {SERIES.map((s) => (
+                  <span
+                    key={s.key}
+                    className="flex items-center gap-1.5 text-xs font-semibold tabular-nums"
+                    style={{ color: s.color }}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                    {formatMoney(stats[s.key])}
+                  </span>
+                ))}
+              </div>
               <TimeSeriesChart
                 stats={yearStats}
                 logScale={logScale}
