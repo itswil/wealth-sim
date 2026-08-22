@@ -115,16 +115,16 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-4">
-          <div>
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
             <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
               Wealth Simulator
             </h1>
-            <p className="text-sm text-slate-500">
+            <p className="hidden text-sm text-slate-500 sm:block">
               A fixed 300-year run. Hover the timeline or pick a year to inspect that year's wealth.
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:w-auto">
             <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">Year</span>
             <input
               type="range"
@@ -136,17 +136,17 @@ function App() {
                 setSelectedYear(Number(e.target.value));
                 setHoverYear(null);
               }}
-              className="w-48 accent-sky-600"
+              className="w-full min-w-0 accent-sky-600 sm:w-48"
               aria-label="Selected year"
             />
-            <span className="w-12 text-right text-sm font-bold text-slate-800 tabular-nums">
+            <span className="w-10 shrink-0 text-right text-sm font-bold text-slate-800 tabular-nums">
               {activeYear}
             </span>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1400px] grid-cols-1 gap-6 px-6 py-6 lg:grid-cols-[340px_1fr]">
+      <main className="mx-auto grid max-w-[1400px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[340px_1fr]">
         <aside className="lg:sticky lg:top-6 lg:self-start">
           <Controls
             params={params}
@@ -224,7 +224,7 @@ function App() {
                     {l.label}
                   </span>
                 ))}
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
                   <button
                     type="button"
                     onClick={handleTogglePlay}
