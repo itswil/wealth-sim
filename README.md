@@ -20,13 +20,13 @@ By default returns are mildly **scale-dependent**, so larger portfolios earn mor
 
 ## 🎛️ Controls
 
-| Section        | Settings                                                                                                          |
-| -------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **World**      | Population (50–5,000), initial average wealth, regenerate / reset                                                  |
-| **Inequality** | Low / Moderate / High / Extreme presets, income & initial-wealth spread                                            |
+| Section        | Settings                                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **World**      | Population (50–5,000), initial average wealth, regenerate / reset                                                             |
+| **Inequality** | Low / Moderate / High / Extreme presets, income & initial-wealth spread                                                       |
 | **Economy**    | Mean income, investment return, savings rate, cost of living, productivity growth, scale-dependent returns, income volatility |
-| **Policy**     | Income tax & UBI, wealth tax (rebated equally), inheritance rate passed on, borrowing limit                         |
-| **Risk**       | Market crash probability & severity                                                                                |
+| **Policy**     | Income tax & UBI, wealth tax (rebated equally), inheritance rate passed on, borrowing limit                                   |
+| **Risk**       | Market crash probability & severity                                                                                           |
 
 Any change re-runs the full simulation and updates every chart.
 
