@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo, useId, type ReactNode } from "react";
 import type { WorldParams } from "../lib/sim";
 import { PRESETS } from "../lib/sim";
 import { formatMoney } from "../lib/format";
@@ -15,6 +15,7 @@ interface SliderProps {
 }
 
 function Slider({ label, value, min, max, step, display, hint, onChange }: SliderProps) {
+  const hintId = useId();
   return (
     <label className="block">
       <div className="flex items-baseline justify-between gap-2">
@@ -29,10 +30,15 @@ function Slider({ label, value, min, max, step, display, hint, onChange }: Slide
         max={max}
         step={step}
         value={value}
+        aria-describedby={hint ? hintId : undefined}
         onChange={(e) => onChange(Number(e.target.value))}
         className="mt-1 w-full accent-sky-600"
       />
-      {hint ? <p className="mt-0.5 text-xs text-slate-400">{hint}</p> : null}
+      {hint ? (
+        <p id={hintId} className="mt-0.5 text-xs text-slate-400">
+          {hint}
+        </p>
+      ) : null}
     </label>
   );
 }

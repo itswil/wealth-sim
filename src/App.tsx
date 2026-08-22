@@ -35,7 +35,6 @@ function StatCard({ item }: { item: StatItem }) {
 
 function App() {
   const [params, setParams] = useState<WorldParams>(DEFAULT_PARAMS);
-  const [presetId, setPresetId] = useState("moderate");
   const [seed, setSeed] = useState(42);
   const [logScale, setLogScale] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -71,10 +70,15 @@ function App() {
     [],
   );
 
+  const activePreset = PRESETS.find(
+    (p) =>
+      p.incomeInequality === params.incomeInequality &&
+      p.initialInequality === params.initialInequality,
+  );
+
   const handlePreset = useCallback((id: string) => {
     const preset = PRESETS.find((p) => p.id === id);
     if (!preset) return;
-    setPresetId(id);
     setParams((p) => ({
       ...p,
       incomeInequality: preset.incomeInequality,
@@ -150,7 +154,7 @@ function App() {
         <aside className="lg:sticky lg:top-6 lg:self-start">
           <Controls
             params={params}
-            presetId={presetId}
+            presetId={activePreset?.id ?? ""}
             onChange={handlePatch}
             onPreset={handlePreset}
             onNewWorld={handleNewWorld}

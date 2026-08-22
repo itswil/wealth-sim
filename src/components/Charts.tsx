@@ -56,10 +56,10 @@ export interface TimeSeriesProps {
 }
 
 export const SERIES = [
-  { key: "top1Avg" as const, label: "Top 1% avg", color: "#e11d48" },
-  { key: "mean" as const, label: "Mean", color: "#0284c7" },
-  { key: "median" as const, label: "Median", color: "#64748b" },
-  { key: "bottom50Avg" as const, label: "Bottom 50% avg", color: "#16a34a" },
+  { key: "top1Avg" as const, label: "Top 1% avg", color: "#D55E00" },
+  { key: "mean" as const, label: "Mean", color: "#0072B2", dash: "7 4" },
+  { key: "median" as const, label: "Median", color: "#64748b", dash: "2 4" },
+  { key: "bottom50Avg" as const, label: "Bottom 50% avg", color: "#009E73", dash: "10 3 2 3" },
 ];
 
 export const TimeSeriesChart = memo(function TimeSeriesChart({
@@ -265,7 +265,8 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
               d={d}
               fill="none"
               stroke={s.color}
-              strokeWidth={1.8}
+              strokeWidth={s.key === "top1Avg" ? 2.2 : 1.8}
+              strokeDasharray={s.dash}
               strokeLinejoin="round"
             />
           );
@@ -385,7 +386,7 @@ export const WealthDistribution = memo(function WealthDistribution({
               y={top}
               width={Math.max(0.5, binW - 1)}
               height={PT + innerH - top}
-              fill={isTop1 ? "#e11d48" : "#0284c7"}
+              fill={isTop1 ? "#D55E00" : "#0072B2"}
               opacity={isTop1 ? 0.85 : 0.75}
             />
           );
@@ -396,7 +397,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             y1={PT}
             x2={logX(p99)}
             y2={H - PB}
-            stroke="#e11d48"
+            stroke="#D55E00"
             strokeWidth={1.5}
             strokeDasharray="4 3"
           />
@@ -407,7 +408,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             y={PT + 12}
             textAnchor="end"
             fontSize={10}
-            fill="#be123c"
+            fill="#C2410C"
             fontWeight={600}
             paintOrder="stroke"
             stroke="#ffffff"
@@ -423,7 +424,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             y1={PT}
             x2={logX(mean)}
             y2={H - PB}
-            stroke="#0284c7"
+            stroke="#0072B2"
             strokeWidth={1.5}
             strokeDasharray="4 3"
           />
@@ -445,7 +446,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             y={PT + 12}
             textAnchor="end"
             fontSize={10}
-            fill="#0284c7"
+            fill="#0072B2"
             fontWeight={600}
             paintOrder="stroke"
             stroke="#ffffff"
@@ -476,7 +477,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             x={PL}
             y={H - 8}
             fontSize={11}
-            fill="#e11d48"
+            fill="#D55E00"
             paintOrder="stroke"
             stroke="#ffffff"
             strokeWidth={3}
