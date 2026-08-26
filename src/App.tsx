@@ -10,7 +10,7 @@ import {
   type WorldParams,
 } from "./lib/sim";
 import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./lib/format";
-import { DEFAULT_SEED, readWorldFromUrl } from "./lib/url-state";
+import { DEFAULT_SEED, readWorldFromUrl, serializeWorldToSearch } from "./lib/url-state";
 import { useTheme } from "./hooks/use-theme";
 
 const YEAR_PRESETS = [0, 25, 50, 100, 200, MAX_YEAR];
@@ -67,11 +67,8 @@ function App() {
   }, [isPlaying, selectedYear]);
 
   useEffect(() => {
-    const sp = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) sp.set(key, String(value));
-    sp.set("seed", String(seed));
-    sp.set("year", String(selectedYear));
-    window.history.replaceState(null, "", `?${sp.toString()}`);
+    const search = serializeWorldToSearch(params, seed, selectedYear);
+    window.history.replaceState(null, "", search);
   }, [params, seed, selectedYear]);
 
   const activeYear = Math.min(snapshots.length - 1, hoverYear ?? selectedYear);

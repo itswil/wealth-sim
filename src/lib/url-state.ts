@@ -81,3 +81,11 @@ export function readWorldFromUrl(): UrlWorld | null {
   if (typeof window === "undefined") return null;
   return parseWorldFromSearch(window.location.search);
 }
+
+export function serializeWorldToSearch(params: WorldParams, seed: number, year: number): string {
+  const sp = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) sp.set(key, String(value));
+  sp.set("seed", String(seed));
+  sp.set("year", String(year));
+  return `?${sp.toString()}`;
+}
