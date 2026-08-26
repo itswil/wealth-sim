@@ -20,9 +20,9 @@ export function formatNumber(v: number): string {
   return v.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
-export function formatPercent(v: number): string {
+export function formatPercent(v: number, digits = 1): string {
   if (!Number.isFinite(v)) return "—";
-  return `${(v * 100).toFixed(1)}%`;
+  return `${(v * 100).toFixed(digits)}%`;
 }
 
 export function formatMultiplier(v: number): string {

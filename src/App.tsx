@@ -75,7 +75,20 @@ function App() {
   const snap = snapshots[activeYear];
   const stats = snap.stats;
   const yearStats = useMemo(() => snapshots.map((s) => s.stats), [snapshots]);
-  const sorted = useMemo(() => sortWealth(snap.wealth), [snap.wealth]);
+  // Sorting is cached per year so scrubbing back to a visited year is free and
+  // downstream memos see a stable identity for the same snapshot.
+  const getSortedWealth = useMemo(() => {
+    const cache = new Map<number, Float64Array>();
+    return (year: number) => {
+      let s = cache.get(year);
+      if (s === undefined) {
+        s = sortWealth(snapshots[year].wealth);
+        cache.set(year, s);
+      }
+      return s;
+    };
+  }, [snapshots]);
+  const sorted = getSortedWealth(activeYear);
 
   const handlePatch = useCallback(
     (patch: Partial<WorldParams>) => setParams((p) => ({ ...p, ...patch })),

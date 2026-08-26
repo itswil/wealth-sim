@@ -211,7 +211,7 @@ export class Simulation {
   readonly n: number;
   readonly wealth: Float64Array;
   readonly incomeFactor: Float64Array;
-  readonly age: Float32Array;
+  readonly age: Float64Array;
   readonly world: WorldConfig;
   year = 0;
   currentStats: YearStats;
@@ -233,7 +233,7 @@ export class Simulation {
     this.n = Math.max(2, Math.floor(world.populationSize));
     this.wealth = new Float64Array(this.n);
     this.incomeFactor = new Float64Array(this.n);
-    this.age = new Float32Array(this.n);
+    this.age = new Float64Array(this.n);
     this.sorted = new Float64Array(this.n);
     this.income = new Float64Array(this.n);
     this.rng = mulberry32(seed);

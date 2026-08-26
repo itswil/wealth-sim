@@ -228,6 +228,8 @@ describe("formatters", () => {
 
   test("formatPercent", () => {
     expect(formatPercent(0.1234)).toBe("12.3%");
+    expect(formatPercent(0.3, 0)).toBe("30%");
+    expect(formatPercent(Number.NaN, 0)).toBe("—");
   });
 
   test("formatMultiplier switches precision at 10x", () => {

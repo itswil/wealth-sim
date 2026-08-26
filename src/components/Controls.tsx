@@ -1,7 +1,7 @@
 import { memo, useId, type ReactNode } from "react";
 import type { WorldParams } from "../lib/sim";
 import { PRESETS } from "../lib/sim";
-import { formatMoney } from "../lib/format";
+import { formatMoney, formatPercent } from "../lib/format";
 
 interface SliderProps {
   label: string;
@@ -266,7 +266,7 @@ export const Controls = memo(function Controls({
           min={0}
           max={0.8}
           step={0.01}
-          display={formatPercentValue(params.incomeTaxRate)}
+          display={formatPercent(params.incomeTaxRate, 0)}
           hint="Flat income tax pooled and paid out equally to everyone."
           onChange={(v) => onChange({ incomeTaxRate: v })}
         />
@@ -309,7 +309,7 @@ export const Controls = memo(function Controls({
           min={0}
           max={0.25}
           step={0.005}
-          display={formatPercentValue(params.crashProbability)}
+          display={formatPercent(params.crashProbability, 0)}
           hint="Chance of a market crash each year."
           onChange={(v) => onChange({ crashProbability: v })}
         />
@@ -327,7 +327,3 @@ export const Controls = memo(function Controls({
     </div>
   );
 });
-
-function formatPercentValue(v: number): string {
-  return `${(v * 100).toFixed(0)}%`;
-}
