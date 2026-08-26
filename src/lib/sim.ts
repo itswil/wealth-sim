@@ -109,6 +109,8 @@ export function simulate(
     incomeInequality: params.incomeInequality,
     initialWealth: params.initialWealth,
     initialInequality: params.initialInequality,
+    meanIncome: params.meanIncome,
+    costOfLiving: params.costOfLiving,
   };
   const sim = new Simulation(seed, world);
   const snapshots: SimulationSnapshot[] = [sim.snapshot()];
@@ -201,6 +203,8 @@ export interface WorldConfig {
   incomeInequality: number;
   initialWealth: number;
   initialInequality: number;
+  meanIncome: number;
+  costOfLiving: number;
 }
 
 export class Simulation {
@@ -221,8 +225,8 @@ export class Simulation {
   private readonly wealthNorm: number;
   private readonly rho = CORRELATIONS.incomeWealth;
 
-  private meanIncome: number | null = null;
-  private costOfLiving: number | null = null;
+  private meanIncome: number;
+  private costOfLiving: number;
 
   constructor(seed: number, world: WorldConfig) {
     this.world = world;
@@ -237,6 +241,8 @@ export class Simulation {
     this.sigmaI = world.incomeInequality;
     this.incomeNorm = Math.exp((this.sigmaI * this.sigmaI) / 2);
     this.wealthNorm = Math.exp((world.initialInequality * world.initialInequality) / 2);
+    this.meanIncome = world.meanIncome;
+    this.costOfLiving = world.costOfLiving;
     const rho = this.rho;
     const rho2 = Math.sqrt(1 - rho * rho);
     for (let i = 0; i < this.n; i++) {
@@ -262,10 +268,6 @@ export class Simulation {
     const { wealth, incomeFactor, income, age, n } = this;
     this.year += 1;
 
-    if (this.meanIncome === null || this.costOfLiving === null) {
-      this.meanIncome = p.meanIncome;
-      this.costOfLiving = p.costOfLiving;
-    }
     const growth = 1 + p.productivityGrowth;
     this.meanIncome *= growth;
     this.costOfLiving *= growth;

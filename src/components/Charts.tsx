@@ -34,6 +34,33 @@ function Card({ title, children, className = "", sub }: CardProps) {
   );
 }
 
+interface YScale {
+  lo: number;
+  hi: number;
+  span: number;
+  transform: (v: number) => number;
+}
+
+function makeYScale(minV: number, maxV: number, logScale: boolean): YScale {
+  const floor = Math.max(maxV * 1e-4, 1);
+  const lo = logScale ? Math.log10(floor) : minV;
+  const hi = logScale ? Math.log10(Math.max(maxV, floor)) : maxV;
+  return {
+    lo,
+    hi,
+    span: hi - lo || 1,
+    transform: (v) => (logScale ? Math.log10(Math.max(v, floor)) : v),
+  };
+}
+
+const makeY =
+  ({ lo, span, transform }: YScale, pt: number, innerH: number) =>
+  (v: number) =>
+    pt + (1 - (transform(v) - lo) / span) * innerH;
+
+const makeX = (minYear: number, maxYear: number, pl: number, innerW: number) => (year: number) =>
+  pl + ((year - minYear) / Math.max(1, maxYear - minYear)) * innerW;
+
 function niceTicks(lo: number, hi: number, count: number): number[] {
   const span = hi - lo;
   if (span <= 0) return [lo];
@@ -97,7 +124,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
 
   const series = SERIES;
 
-  const { paths, yTicks, xTicks, minV, maxV, minYear, maxYear } = useMemo(() => {
+  const { paths, yTicks, xTicks, minYear, maxYear, yScale } = useMemo(() => {
     let minV = Infinity;
     let maxV = -Infinity;
     for (const s of stats) {
@@ -107,23 +134,21 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
       }
     }
 
-    const floor = Math.max(maxV * 1e-4, 1);
-    const lo = logScale ? Math.log10(floor) : minV;
-    const hi = logScale ? Math.log10(Math.max(maxV, floor)) : maxV;
-    const span = hi - lo || 1;
-    const transform = (v: number) => (logScale ? Math.log10(Math.max(v, floor)) : v);
-    const y = (v: number) => PT + (1 - (transform(v) - lo) / span) * innerH;
+    const yScale = makeYScale(minV, maxV, logScale);
+    const y = makeY(yScale, PT, innerH);
 
     const len = stats.length;
     const minYear = stats[0].year;
     const maxYear = stats[len - 1].year;
-    const x = (year: number) => PL + ((year - minYear) / Math.max(1, maxYear - minYear)) * innerW;
+    const x = makeX(minYear, maxYear, PL, innerW);
 
     const paths = series.map(({ key }) => {
       const pts = stats.map((s) => `${x(s.year).toFixed(1)},${y(s[key]).toFixed(1)}`);
       return `M ${pts.join(" L ")}`;
     });
 
+    const lo = yScale.lo;
+    const hi = yScale.hi;
     const yTicks = logScale
       ? (() => {
           const ticks: number[] = [];
@@ -139,16 +164,11 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
 
     const xTicks = niceTicks(minYear, maxYear, narrow ? 4 : 6);
 
-    return { paths, yTicks, xTicks, minV, maxV, minYear, maxYear };
-  }, [stats, logScale, narrow]);
+    return { paths, yTicks, xTicks, minYear, maxYear, yScale };
+  }, [stats, logScale, narrow, W]);
 
-  const floor = Math.max(maxV * 1e-4, 1);
-  const lo = logScale ? Math.log10(floor) : minV;
-  const hi = logScale ? Math.log10(Math.max(maxV, floor)) : maxV;
-  const span = hi - lo || 1;
-  const transform = (v: number) => (logScale ? Math.log10(Math.max(v, floor)) : v);
-  const y = (v: number) => PT + (1 - (transform(v) - lo) / span) * innerH;
-  const x = (year: number) => PL + ((year - minYear) / Math.max(1, maxYear - minYear)) * innerW;
+  const y = makeY(yScale, PT, innerH);
+  const x = makeX(minYear, maxYear, PL, innerW);
 
   const activeYear = Math.max(minYear, Math.min(maxYear, hoverYear ?? selectedYear));
   const activeX = x(activeYear);

@@ -10,60 +10,10 @@ import {
   type WorldParams,
 } from "./lib/sim";
 import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./lib/format";
+import { DEFAULT_SEED, readWorldFromUrl } from "./lib/url-state";
 import { useTheme } from "./hooks/use-theme";
 
 const YEAR_PRESETS = [0, 25, 50, 100, 200, MAX_YEAR];
-
-const URL_PARAM_RANGES: Record<keyof WorldParams, [number, number]> = {
-  populationSize: [50, 5000],
-  meanIncome: [20000, 200000],
-  incomeInequality: [0.1, 2],
-  initialWealth: [0, 200000],
-  initialInequality: [0.1, 2.5],
-  costOfLiving: [0, 50000],
-  returnRate: [0, 0.15],
-  savingsRate: [0, 0.3],
-  incomeTaxRate: [0, 0.8],
-  wealthTaxRate: [0, 0.05],
-  inheritanceRate: [0, 1],
-  crashProbability: [0, 0.25],
-  crashSeverity: [0, 0.8],
-  maxDebtYears: [0, 10],
-  returnScale: [0, 1],
-  incomeShock: [0, 0.4],
-  productivityGrowth: [0, 0.05],
-};
-
-function clampParam(key: keyof WorldParams, raw: string | null): number | null {
-  if (raw === null) return null;
-  const n = Number(raw);
-  const [min, max] = URL_PARAM_RANGES[key];
-  if (!Number.isFinite(n)) return null;
-  return Math.min(max, Math.max(min, n));
-}
-
-function readWorldFromUrl(): { params: Partial<WorldParams>; seed: number; year: number } | null {
-  if (typeof window === "undefined") return null;
-  const sp = new URLSearchParams(window.location.search);
-  if (![...sp.keys()].length) return null;
-  const params: Partial<WorldParams> = {};
-  let matched = false;
-  for (const key of Object.keys(URL_PARAM_RANGES) as (keyof WorldParams)[]) {
-    const value = clampParam(key, sp.get(key));
-    if (value !== null) {
-      params[key] = value;
-      matched = true;
-    }
-  }
-  if (!matched) return null;
-  const seedRaw = Number(sp.get("seed"));
-  const seed = Number.isInteger(seedRaw) && seedRaw >= 0 && seedRaw < 1e9 ? seedRaw : DEFAULT_SEED;
-  const yearRaw = Number(sp.get("year"));
-  const year = Number.isInteger(yearRaw) && yearRaw >= 0 ? Math.min(MAX_YEAR, yearRaw) : 0;
-  return { params, seed, year };
-}
-
-const DEFAULT_SEED = 42;
 
 interface StatItem {
   label: string;
