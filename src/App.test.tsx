@@ -35,3 +35,21 @@ test("chart keyboard navigation jumps to the last year", async () => {
   await userEvent.keyboard("{Home}");
   expect((yearInput.element() as HTMLInputElement).value).toBe("0");
 });
+
+test("reset restores default parameters", async () => {
+  const { getByRole } = await render(<App />);
+  const worldHeading = getByRole("heading", { name: "World" });
+  const section = worldHeading.element().closest("details");
+  if (section && !section.open) {
+    await worldHeading.click();
+  }
+  const population = getByRole("slider", { name: /Population/ });
+  await expect.element(population).toBeVisible();
+
+  await userEvent.click(population);
+  await userEvent.keyboard("{Home}");
+  expect((population.element() as HTMLInputElement).value).toBe("50");
+
+  await getByRole("button", { name: "Reset" }).click();
+  expect((population.element() as HTMLInputElement).value).toBe("1000");
+});

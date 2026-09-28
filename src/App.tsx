@@ -119,6 +119,7 @@ function App() {
   }, []);
 
   const handleReset = useCallback(() => {
+    setParams(DEFAULT_PARAMS);
     setSelectedYear(0);
     setHoverYear(null);
     setIsPlaying(false);

@@ -2,6 +2,7 @@ import { memo, useId, type ReactNode } from "react";
 import type { WorldParams } from "../lib/sim";
 import { PRESETS } from "../lib/sim";
 import { formatMoney, formatPercent } from "../lib/format";
+import { useMediaQuery } from "../hooks/use-media-query";
 
 interface SliderProps {
   label: string;
@@ -49,9 +50,10 @@ interface SectionProps {
 }
 
 function Section({ title, children }: SectionProps) {
+  const isWide = useMediaQuery("(min-width: 1024px)");
   return (
     <details
-      open
+      open={isWide}
       className="group border-t border-slate-200 px-4 py-3 first:border-t-0 dark:border-slate-700"
     >
       <summary className="flex cursor-pointer select-none list-none items-center justify-between [&::-webkit-details-marker]:hidden">
