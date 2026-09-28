@@ -8,6 +8,9 @@ import {
   percentile,
   simulate,
   sortWealth,
+  top1Bins,
+  top1Count,
+  type HistogramBin,
   type WorldParams,
 } from "./sim";
 import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./format";
@@ -170,13 +173,55 @@ describe("percentile", () => {
   test("returns values from the sorted array", () => {
     const sorted = Float64Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(percentile(sorted, 0)).toBe(1);
-    expect(percentile(sorted, 0.5)).toBe(6);
+    expect(percentile(sorted, 0.5)).toBe(5);
     expect(percentile(sorted, 0.99)).toBe(10);
     expect(percentile(sorted, 1)).toBe(10);
   });
 
   test("handles empty arrays", () => {
     expect(percentile(new Float64Array(0), 0.5)).toBe(0);
+  });
+
+  test("nearest-rank p99 is not the maximum for exactly 100 items", () => {
+    const hundred = Float64Array.from({ length: 100 }, (_, i) => i + 1);
+    expect(percentile(hundred, 0.99)).toBe(99);
+    expect(percentile(hundred, 1)).toBe(100);
+  });
+});
+
+describe("top1Count", () => {
+  test("rounds to whole people with a floor of one", () => {
+    expect(top1Count(1000)).toBe(10);
+    expect(top1Count(100)).toBe(1);
+    expect(top1Count(50)).toBe(1);
+    expect(top1Count(150)).toBe(2);
+  });
+});
+
+describe("top1Bins", () => {
+  const makeBins = (counts: number[]): HistogramBin[] =>
+    counts.map((count, i) => ({ min: i, max: i + 1, count }));
+
+  test("marks only the bins holding the top 1%", () => {
+    const bins = makeBins([40, 30, 20, 9, 1]);
+    expect(top1Bins(bins, 100)).toEqual([false, false, false, false, true]);
+    expect(top1Bins(bins, 1000)).toEqual([false, false, false, true, true]);
+  });
+
+  test("marks at least one bin even for tiny populations", () => {
+    expect(top1Bins(makeBins([3, 2]), 5)).toEqual([false, true]);
+  });
+
+  test("skips empty bins at the top of the range", () => {
+    expect(top1Bins(makeBins([5, 5, 0]), 100)).toEqual([false, true, false]);
+  });
+
+  test("flags the richest person's bin for a 50-person world (regression)", () => {
+    const sorted = Float64Array.from({ length: 50 }, (_, i) => i + 1);
+    const { bins } = buildHistogram(sorted, 120);
+    const flags = top1Bins(bins, 50);
+    expect(flags.some(Boolean)).toBe(true);
+    expect(flags.at(-1)).toBe(true);
   });
 });
 

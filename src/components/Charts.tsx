@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { YearStats } from "../lib/sim";
-import { buildHistogram, percentile } from "../lib/sim";
+import { buildHistogram, percentile, top1Bins } from "../lib/sim";
 import { formatMoney } from "../lib/format";
 import { PALETTE } from "../lib/palette";
 import { useMeasuredWidth } from "../hooks/use-measured-width";
@@ -438,6 +438,7 @@ export const WealthDistribution = memo(function WealthDistribution({
   const { bins, negatives } = useMemo(() => buildHistogram(sorted), [sorted]);
   const p99 = useMemo(() => percentile(sorted, 0.99), [sorted]);
   const n = sorted.length;
+  const topFlags = useMemo(() => top1Bins(bins, n), [bins, n]);
   if (bins.length === 0) {
     return (
       <div
@@ -509,7 +510,7 @@ export const WealthDistribution = memo(function WealthDistribution({
         })}
         {bins.map((b, i) => {
           const top = PT + innerH * (1 - b.count / maxCount);
-          const isTop1 = b.min >= p99;
+          const isTop1 = topFlags[i];
           return (
             <rect
               key={i}

@@ -377,14 +377,14 @@ export class Simulation {
       gini = Number.isFinite(g) ? Math.min(1, Math.max(0, g)) : 0;
     }
 
-    const top1Count = Math.max(1, Math.round(0.01 * n));
+    const top1 = top1Count(n);
     const top10Count = Math.max(1, Math.round(0.1 * n));
     const bottom50Count = Math.max(1, Math.floor(0.5 * n));
     let top1Sum = 0;
     let top10Sum = 0;
     let bottom50Sum = 0;
     for (let i = 0; i < n; i++) {
-      if (i >= n - top1Count) top1Sum += s[i];
+      if (i >= n - top1) top1Sum += s[i];
       if (i >= n - top10Count) top10Sum += s[i];
       if (i < bottom50Count) bottom50Sum += s[i];
     }
@@ -395,7 +395,7 @@ export class Simulation {
       mean,
       median,
       gini,
-      top1Avg: top1Sum / top1Count,
+      top1Avg: top1Sum / top1,
       top10Avg: top10Sum / top10Count,
       bottom50Avg: bottom50Sum / bottom50Count,
       top1Share: total !== 0 ? top1Sum / total : 0,
@@ -456,8 +456,24 @@ export function sortWealth(wealth: Float64Array): Float64Array {
   return sorted;
 }
 
+export function top1Count(population: number): number {
+  return Math.max(1, Math.round(0.01 * population));
+}
+
+export function top1Bins(bins: readonly HistogramBin[], population: number): boolean[] {
+  const flags = bins.map(() => false);
+  let remaining = top1Count(population);
+  for (let i = bins.length - 1; i >= 0 && remaining > 0; i--) {
+    if (bins[i].count === 0) continue;
+    flags[i] = true;
+    remaining -= bins[i].count;
+  }
+  return flags;
+}
+
 export function percentile(sorted: Float64Array, pct: number): number {
   const n = sorted.length;
   if (n === 0) return 0;
-  return sorted[Math.min(n - 1, Math.floor(pct * n))];
+  const rank = Math.ceil(pct * n);
+  return sorted[Math.min(n - 1, Math.max(0, rank - 1))];
 }
