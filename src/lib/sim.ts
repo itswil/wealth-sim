@@ -337,7 +337,7 @@ export class Simulation {
     for (let i = 0; i < n; i++) {
       if (this.rng() < deathProbability(age[i])) {
         // The respawned adult is the heir: dynastic, single-child inheritance.
-        const estate = wealth[i] * p.inheritanceRate;
+        const estate = wealth[i] > 0 ? wealth[i] * p.inheritanceRate : wealth[i];
         const zParent =
           Math.log(Math.max(Number.MIN_VALUE, incomeFactor[i] * this.incomeNorm)) / this.sigmaI ||
           0;

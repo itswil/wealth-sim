@@ -17,6 +17,22 @@ import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./fo
 
 const baseParams: WorldParams = { ...DEFAULT_PARAMS, crashProbability: 0 };
 
+const frozenWorld: WorldParams = {
+  ...DEFAULT_PARAMS,
+  populationSize: 500,
+  incomeInequality: 0.1,
+  initialInequality: 0.1,
+  costOfLiving: 0,
+  savingsRate: 0,
+  maxDebtYears: 10,
+  incomeTaxRate: 0,
+  wealthTaxRate: 0,
+  returnRate: 0,
+  crashProbability: 0,
+  productivityGrowth: 0,
+  incomeShock: 0,
+};
+
 describe("simulate", () => {
   test("produces one snapshot per year including year 0", () => {
     const snapshots = simulate(baseParams, 42);
@@ -132,6 +148,23 @@ describe("simulate", () => {
     const ratio = wild[1].stats.mean / calm[1].stats.mean;
     expect(ratio).toBeGreaterThan(0.98);
     expect(ratio).toBeLessThan(1.02);
+  });
+
+  test("a zero inheritance rate does not forgive debt", () => {
+    const params: WorldParams = {
+      ...frozenWorld,
+      initialWealth: -1000,
+      inheritanceRate: 0,
+    };
+    const final = simulate(params, 11, 120).at(-1)!;
+    expect(final.stats.total).toBeLessThan(0);
+  });
+
+  test("a zero inheritance rate still dissipates positive estates", () => {
+    const world: WorldParams = { ...frozenWorld, initialWealth: 1000 };
+    const noInheritance = simulate({ ...world, inheritanceRate: 0 }, 11, 120).at(-1)!;
+    const fullInheritance = simulate({ ...world, inheritanceRate: 1 }, 11, 120).at(-1)!;
+    expect(noInheritance.stats.total).toBeLessThan(fullInheritance.stats.total);
   });
 });
 

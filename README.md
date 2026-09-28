@@ -40,7 +40,7 @@ Each simulated year, for every person:
 4. They consume `costOfLiving + (1 − savingsRate) × surplus` — except that consumption is cut before net worth can fall below the **borrowing limit** (`maxDebtYears × max(income, cost of living)`); if income loss leaves them beyond it anyway, bankruptcy clears their debts.
 5. A flat **income tax** funds an equal **universal basic income**; the **wealth tax** on positive fortunes is likewise rebated equally to everyone.
 6. A **market crash** may strike (iid each year): a random macro loss is applied to positive wealth only, scaled by a person-specific factor.
-7. At death (Gompertz hazard rising from ~75, hard stop at 110), the estate × inheritance-rate passes intact to the respawned heir — their child. The child enters at age 22–30 with inherited talent correlated to the parent's (ρ = 0.5), so fortunes and earning ability travel together down family lines.
+7. At death (Gompertz hazard rising from ~75, hard stop at 110), a positive estate × inheritance-rate passes to the respawned heir — their child; any debt passes on in full (the rate is an estate tax, not debt relief). The child enters at age 22–30 with inherited talent correlated to the parent's (ρ = 0.5), so fortunes and earning ability travel together down family lines.
 
 The initial population draws log-normal talent and starting wealth correlated at ρ = 0.7, ages spread 22–74.
 
