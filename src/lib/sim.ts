@@ -272,8 +272,9 @@ export class Simulation {
     this.meanIncome *= growth;
     this.costOfLiving *= growth;
 
+    const shockNorm = Math.exp((p.incomeShock * p.incomeShock) / 2);
     for (let i = 0; i < n; i++) {
-      const shock = Math.exp(p.incomeShock * this.gauss());
+      const shock = Math.exp(p.incomeShock * this.gauss()) / shockNorm;
       income[i] = this.meanIncome * incomeFactor[i] * laborIncomeFactor(age[i]) * shock;
     }
 

@@ -112,6 +112,27 @@ describe("simulate", () => {
     const static_ = simulate({ ...params, productivityGrowth: 0 }, 42, 100);
     expect(growing.at(-1)!.stats.mean).toBeGreaterThan(static_.at(-1)!.stats.mean);
   });
+
+  test("income volatility is mean-preserving", () => {
+    const base: WorldParams = {
+      ...DEFAULT_PARAMS,
+      populationSize: 5000,
+      initialWealth: 0,
+      crashProbability: 0,
+      costOfLiving: 0,
+      savingsRate: 1,
+      returnRate: 0,
+      incomeTaxRate: 0,
+      wealthTaxRate: 0,
+      productivityGrowth: 0,
+      incomeShock: 0,
+    };
+    const calm = simulate(base, 42, 1);
+    const wild = simulate({ ...base, incomeShock: 0.4 }, 42, 1);
+    const ratio = wild[1].stats.mean / calm[1].stats.mean;
+    expect(ratio).toBeGreaterThan(0.98);
+    expect(ratio).toBeLessThan(1.02);
+  });
 });
 
 describe("gini", () => {
