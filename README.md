@@ -4,11 +4,11 @@ An interactive agent-based simulator for exploring how wealth accumulates — an
 
 Every person earns income on an age-based career curve that ends in retirement, pays a cost of living, saves a share of their surplus, earns investment returns that improve with portfolio size, and eventually dies. Their estate passes to a single heir, whose earning potential is partly inherited. Borrowing is capped by a credit limit and debts can trigger bankruptcy. Occasional market crashes hit portfolios unevenly.
 
-By default returns are mildly **scale-dependent**, so larger portfolios earn more per dollar — one of the "rich get richer" engines at the heart of the simulator, alongside unbounded compounding. (Inheritance redirects estates to the next generation rather than concentrating them; see [what actually drives concentration](#what-actually-drives-concentration).)
+By default returns are mildly **scale-dependent**, so larger portfolios earn more per dollar — one of the "rich get richer" engines at the heart of the simulator, alongside unbounded compounding. (Inheritance recycles estates to the next generation and lifts the bottom half's share; see [what actually drives concentration](#what-actually-drives-concentration).)
 
 ## ✨ Features
 
-- **Fixed 300-year timeline** — the whole run is precomputed once; any control change re-runs it (~75ms at default population, ~280ms at 5,000).
+- **Fixed 300-year timeline** — the whole run is precomputed once; any control change re-runs it (~30ms at default population, ~170ms at 5,000).
 - **Inspect any year** — hover or drag on the chart (mouse or touch), scrub the slider, use arrow keys (Shift for 10-year jumps), tap a jump preset, or press play to animate.
 - **Two live visualisations**:
   - _Wealth over time_ — top 1% avg, mean, median, and bottom 50% avg per year, with direct line labels, a value readout for the active year, log/linear toggle, and playback progress bar.
@@ -44,35 +44,35 @@ Each simulated year, for every person:
 
 The initial population draws log-normal talent and starting wealth correlated at ρ = 0.7, ages spread 22–74.
 
-Stats — mean, median, Gini, top-1%/bottom-50% shares — are recomputed from the sorted wealth distribution every year, along with that year's mean income.
+Stats — mean, median, Gini, top-1%/bottom-50% shares — are recomputed from the sorted wealth distribution every year, along with that year's mean income. The Lorenz-curve Gini is undefined once balances go negative (it divides by a total that debt shrinks), so it is measured on the population shifted up to be non-negative: the single worst-off agent counts as holding zero net worth. Top-1%/bottom-50% shares are reported only when total wealth is positive — a share of a negative or zero total is not a quantity, so the UI shows an em dash instead.
 
 ### What actually drives concentration
 
-Two engines compound wealth without limit: **scale-dependent returns** (bigger balances earn more per dollar) and **uninterrupted compounding** (consumption never scales with wealth, so nothing throttles a large fortune). The distribution is **unimodal** at default settings — a single hump with a thin right tail, not two separate populations — and its _shape_ stabilises by roughly year 50:
+Two engines compound wealth without limit: **scale-dependent returns** (bigger balances earn more per dollar) and **uninterrupted compounding** (consumption never scales with wealth, so nothing throttles a large fortune). The distribution is **unimodal** at default settings — a single hump with a thin right tail, not two separate populations — and its _shape_ stabilises by roughly year 100:
 
-| year                          | 50    | 100   | 150   | 200    | 250     | 300        |
-| ----------------------------- | ----- | ----- | ----- | ------ | ------- | ---------- |
-| Gini                          | 0.659 | 0.633 | 0.630 | 0.632  | 0.632   | 0.633      |
-| mean wealth (years of income) | 11    | 148   | 2,288 | 31,298 | 707,741 | 12,530,372 |
+| year                          | 50    | 100   | 150   | 200    | 250     | 300       |
+| ----------------------------- | ----- | ----- | ----- | ------ | ------- | --------- |
+| Gini                          | 0.552 | 0.630 | 0.637 | 0.642  | 0.641   | 0.646     |
+| mean wealth (years of income) | 11    | 208   | 2,498 | 39,949 | 648,866 | 7,093,971 |
 
 Because the effective return (5%) exceeds income growth (1%) and consumption is capped at living costs, the wealth-to-income ratio diverges: after year ~100 the run still changes, but only by multiplying everything by a constant. That is why the headline stats include **wealth ÷ income** — it is the stationary quantity, while nominal dollars reach the quadrillions. To study the distribution rather than the scale, read the Gini and shares; to study the scale, read the ratio.
 
-Inheritance is **not** the concentration engine here, and the effect runs opposite to intuition: destroying estates at death (inheritance 0%) makes each generation restart from zero, which concentrates **more** — Gini 0.71–0.76 at year 200 across six seeds, versus 0.63–0.68 when estates pass on in full. Inheritance recycles wealth to young heirs, lifting the bottom half's share. Partial inheritance (50%) is the least concentrated of the three in all six seeds.
+Inheritance is a weak concentration lever on its own. Across six seeds at year 200, Gini lands in 0.46–0.66 with inheritance at 0%, 0.62–0.65 at 50%, and 0.64–0.65 at 100% — so passing estates on in full is marginally the _most_ concentrated of the three, and destroying them is the most variable. The clearest signal is the bottom half's share, which inheritance lifts sharply: 1.4–3.7% at 0% versus 5.2–7.9% when any estate survives. Recycling a fortune to a 22-year-old heir keeps it in the population instead of restarting each generation from zero.
 
 The strongest levers are the **spread** parameters and the wealth tax, not the return engine (seed 42, year 200):
 
 | scenario           | Gini  | top 1% | bottom 50% |
 | ------------------ | ----- | ------ | ---------- |
-| Moderate (default) | 0.632 | 8.9%   | 6.5%       |
+| Moderate (default) | 0.642 | 8.4%   | 6.3%       |
 | Low preset         | 0.481 | 4.8%   | 15.6%      |
-| Extreme preset     | 0.874 | 29.8%  | 0.0%       |
-| Wealth tax 5%/yr   | 0.016 | 1.1%   | 48.9%      |
-| Inheritance 0%     | 0.754 | 13.1%  | 1.9%       |
-| `returnScale = 0`  | 0.614 | 8.2%   | 7.9%       |
-| `returnRate = 0`   | 0.834 | 10.2%  | −7.5%      |
-| `savingsRate = 0`  | 0.950 | 36.4%  | −0.1%      |
+| Extreme preset     | 0.871 | 25.9%  | 0.0%       |
+| Wealth tax 5%/yr   | 0.006 | 1.0%   | 49.6%      |
+| Inheritance 0%     | 0.458 | 10.6%  | 1.4%       |
+| `returnScale = 0`  | 0.614 | 8.1%   | 7.8%       |
+| `returnRate = 0`   | 0.556 | 10.0%  | −9.1%      |
+| `savingsRate = 0`  | 0.945 | 36.6%  | −0.0%      |
 
-Note how counterintuitive the return levers are: switching off the scale dependence barely moves the Gini, and switching off returns entirely makes concentration _worse_ (0.83). With no growth, wealth is pure accumulated savings — and because a negative bottom-50% share means that half is net indebted, the households that never generate a surplus never accumulate anything at all.
+Note how weak the return levers are: switching off scale dependence barely moves the Gini (0.64 → 0.61), and switching off returns entirely makes concentration _better_, not worse (0.56). With no compounding, wealth is pure accumulated savings — and because a negative bottom-50% share means that half is net indebted, the households that never generate a surplus never accumulate anything at all.
 
 ## ⚖️ Known limitations
 

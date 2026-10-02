@@ -40,6 +40,44 @@ const frozenWorld: WorldParams = {
   incomeShock: 0,
 };
 
+describe("shares", () => {
+  test("are NaN when the population's total wealth is not positive", () => {
+    // A share of a negative or zero total is not a quantity — it inverts into
+    // nonsense like "bottom 50% owns 69%". Formatters render NaN as an em dash.
+    const world: WorldParams = {
+      ...DEFAULT_PARAMS,
+      initialWealth: 0,
+      meanIncome: 20_000,
+      costOfLiving: 50_000,
+      maxDebtYears: 10,
+      inheritanceRate: 0,
+      savingsRate: 0,
+      productivityGrowth: 0,
+    };
+    const snapshots = simulate(world, 42, 40);
+    const debtor = snapshots.find((snap) => snap.stats.total < 0);
+    expect(debtor).toBeDefined();
+    expect(Number.isNaN(debtor!.stats.top1Share)).toBe(true);
+    expect(Number.isNaN(debtor!.stats.bottom50Share)).toBe(true);
+    // Averages stay meaningful even when shares do not.
+    expect(Number.isFinite(debtor!.stats.top1Avg)).toBe(true);
+    expect(Number.isFinite(debtor!.stats.bottom50Avg)).toBe(true);
+  });
+
+  test("stay finite and sum consistently whenever the total is positive", () => {
+    for (const snap of simulate(DEFAULT_PARAMS, 42)) {
+      if (snap.stats.total <= 0) continue;
+      expect(Number.isFinite(snap.stats.top1Share)).toBe(true);
+      expect(Number.isFinite(snap.stats.bottom50Share)).toBe(true);
+      expect(snap.stats.top1Share).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  test("render as an em dash through the formatters", () => {
+    expect(formatPercent(Number.NaN)).toBe("—");
+  });
+});
+
 describe("simulate", () => {
   test("produces one snapshot per year including year 0", () => {
     const snapshots = simulate(baseParams, 42);
@@ -52,6 +90,15 @@ describe("simulate", () => {
     const a = simulate(baseParams, 7, 80);
     const b = simulate(baseParams, 7, 80);
     expect(a).toEqual(b);
+  });
+
+  test("each snapshot carries the same distribution pre-sorted", () => {
+    // The stats pass has to sort anyway, so the snapshot ships that order and
+    // the UI never re-sorts. Consumers rely on it for the histogram.
+    for (const snap of simulate(baseParams, 42, 20)) {
+      expect(snap.sorted).toHaveLength(snap.wealth.length);
+      expect([...snap.sorted]).toEqual([...snap.wealth].sort((a, b) => a - b));
+    }
   });
 
   test("total wealth never increases when only crashes and inheritance act", () => {
@@ -182,6 +229,48 @@ describe("gini", () => {
       expect(snap.stats.gini).toBeGreaterThanOrEqual(0);
       expect(snap.stats.gini).toBeLessThanOrEqual(1);
     }
+  });
+
+  test("measures inequality when the population is entirely in debt", () => {
+    // The Lorenz Gini divides by the total, so a net-debtor population used to
+    // clamp to a meaningless 0.00 — the same score as perfect equality.
+    const world: WorldParams = {
+      ...DEFAULT_PARAMS,
+      initialWealth: 0,
+      meanIncome: 20_000,
+      costOfLiving: 50_000,
+      maxDebtYears: 10,
+      inheritanceRate: 0,
+      savingsRate: 0,
+      productivityGrowth: 0,
+    };
+    const snapshots = simulate(world, 42, 40);
+    const debtor = snapshots.find((snap) => snap.stats.total < 0);
+    expect(debtor).toBeDefined();
+    expect(debtor!.stats.gini).toBeGreaterThan(0);
+    expect(debtor!.stats.gini).toBeLessThanOrEqual(1);
+  });
+
+  test("equals the textbook formula when nobody carries debt", () => {
+    // The non-negative shift must be a no-op for populations that never borrow.
+    const world: WorldParams = {
+      ...DEFAULT_PARAMS,
+      maxDebtYears: 0,
+      costOfLiving: 0,
+      meanIncome: 100_000,
+      initialWealth: 10_000,
+    };
+    const sorted = simulate(world, 42, 60).at(-1)!.wealth.slice().sort();
+    expect(sorted[0]).toBeGreaterThanOrEqual(0);
+
+    let total = 0;
+    let weighted = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      total += sorted[i];
+      weighted += (i + 1) * sorted[i];
+    }
+    const textbook = (2 * weighted) / (sorted.length * total) - (sorted.length + 1) / sorted.length;
+    expect(simulate(world, 42, 60).at(-1)!.stats.gini).toBeCloseTo(textbook, 12);
   });
 
   test("initial inequality parameter drives year-0 concentration", () => {
@@ -395,14 +484,18 @@ describe("300-year horizon", () => {
     expect(late.mean / late.meanIncome).toBeGreaterThan(1000 * (early.mean / early.meanIncome));
   });
 
-  test("inheritance compresses concentration instead of building a dynastic tail", () => {
-    // Measured regression: destroying estates at death restarts every
-    // generation from zero, which concentrates *more* than recycling wealth to
-    // heirs. The docs claimed the opposite.
+  test("recycling estates lifts the bottom half versus restarting from zero", () => {
+    // Regression: destroying estates at death collapses total wealth by ~4
+    // orders of magnitude, and the old Gini divided by that shrunken total, so
+    // it scored inheritance 0% as *more* concentrated (0.72 vs 0.64). Once Gini
+    // is measured on a non-negative population the relationship flips: passing
+    // estates on is at least as concentrated, and clearly better for the bottom
+    // half, whose share is several times higher.
     for (const seed of [7, 42]) {
       const none = simulate({ ...DEFAULT_PARAMS, inheritanceRate: 0 }, seed, 200).at(-1)!;
       const full = simulate({ ...DEFAULT_PARAMS, inheritanceRate: 1 }, seed, 200).at(-1)!;
-      expect(none.stats.gini, `seed ${seed}`).toBeGreaterThan(full.stats.gini);
+      expect(none.stats.gini, `seed ${seed}`).toBeLessThan(full.stats.gini);
+      expect(none.stats.bottom50Share, `seed ${seed}`).toBeLessThan(full.stats.bottom50Share);
     }
   });
 });

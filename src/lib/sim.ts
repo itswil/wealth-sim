@@ -116,6 +116,12 @@ export interface YearStats {
   gini: number;
   top1Avg: number;
   bottom50Avg: number;
+  /**
+   * Fraction of total wealth held by the top 1% / bottom 50%. `NaN` when the
+   * population's total is not positive — there is no pie to divide, and the
+   * ratio inverts into nonsense once the total goes negative. Formatters render
+   * `NaN` as an em dash.
+   */
   top1Share: number;
   bottom50Share: number;
   /**
@@ -130,6 +136,12 @@ export interface SimulationSnapshot {
   year: number;
   stats: YearStats;
   wealth: Float64Array;
+  /**
+   * `wealth` in ascending order. Carried from the stats pass, which has to sort
+   * anyway, so consumers never pay for a second sort. Only valid immediately
+   * after `computeStats`, which every `step` performs.
+   */
+  sorted: Float64Array;
 }
 
 export const MAX_YEAR = 300;
@@ -293,6 +305,7 @@ export class Simulation {
       year: this.year,
       stats: this.currentStats,
       wealth: this.wealth.slice(),
+      sorted: this.sorted.slice(),
     };
   }
 
@@ -404,13 +417,22 @@ export class Simulation {
     const mid = n >> 1;
     const median = n % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 
+    // The Lorenz-curve Gini is only defined over non-negative balances: it
+    // divides by the total, so a population carrying debt gets an inflated
+    // score that silently clamps to 0. Measure inequality on a population
+    // shifted up to be non-negative, which reads the single worst-off agent as
+    // holding zero net worth — the usual treatment for net-worth distributions.
+    // The shift is zero whenever nobody is in debt, leaving the textbook
+    // formula untouched for every population that never borrows.
+    const shift = s[0] < 0 ? s[0] : 0;
     let gini = 0;
-    if (n > 0) {
+    const shiftedTotal = total - shift * n;
+    if (shiftedTotal > 0) {
       let weighted = 0;
       for (let i = 0; i < n; i++) {
-        weighted += (i + 1) * s[i];
+        weighted += (i + 1) * (s[i] - shift);
       }
-      const g = (2 * weighted) / (n * total) - (n + 1) / n;
+      const g = (2 * weighted) / (n * shiftedTotal) - (n + 1) / n;
       gini = Number.isFinite(g) ? Math.min(1, Math.max(0, g)) : 0;
     }
 
@@ -431,8 +453,8 @@ export class Simulation {
       gini,
       top1Avg: top1Sum / top1,
       bottom50Avg: bottom50Sum / bottom50Count,
-      top1Share: total !== 0 ? top1Sum / total : 0,
-      bottom50Share: total !== 0 ? bottom50Sum / total : 0,
+      top1Share: total > 0 ? top1Sum / total : Number.NaN,
+      bottom50Share: total > 0 ? bottom50Sum / total : Number.NaN,
       meanIncome: this.meanIncome,
     };
   }

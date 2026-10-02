@@ -45,11 +45,12 @@ function Slider({ param, label, value, display, hint, onChange }: SliderProps) {
 
 interface SectionProps {
   title: string;
+  /** Owned by the panel so one breakpoint means one listener, not one per section. */
+  isWide: boolean;
   children: ReactNode;
 }
 
-function Section({ title, children }: SectionProps) {
-  const isWide = useMediaQuery("(min-width: 1024px)");
+function Section({ title, isWide, children }: SectionProps) {
   // Controlled so manual expand/collapse survives re-renders, while still
   // tracking the viewport breakpoint when it changes.
   const [open, setOpen] = useState(isWide);
@@ -99,6 +100,9 @@ export const Controls = memo(function Controls({
   onNewWorld,
   onReset,
 }: ControlsProps) {
+  // One breakpoint, one listener: the panel is sticky and open at the lg
+  // breakpoint and collapsible below it.
+  const isWide = useMediaQuery("(min-width: 1024px)");
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:bg-slate-800">
       <div className="flex items-center justify-between px-4 py-3">
@@ -123,7 +127,7 @@ export const Controls = memo(function Controls({
         </div>
       </div>
 
-      <Section title="World">
+      <Section title="World" isWide={isWide}>
         <div className="space-y-1">
           <p className="text-xs text-slate-500">
             Any change re-runs the 300-year simulation and updates every chart.
@@ -146,7 +150,7 @@ export const Controls = memo(function Controls({
         </div>
       </Section>
 
-      <Section title="Inequality">
+      <Section title="Inequality" isWide={isWide}>
         <div className="grid grid-cols-4 gap-1.5">
           {PRESETS.map((p) => (
             <button
@@ -184,7 +188,7 @@ export const Controls = memo(function Controls({
         />
       </Section>
 
-      <Section title="Economy">
+      <Section title="Economy" isWide={isWide}>
         <Slider
           param="meanIncome"
           label="Mean income"
@@ -243,7 +247,7 @@ export const Controls = memo(function Controls({
         />
       </Section>
 
-      <Section title="Policy">
+      <Section title="Policy" isWide={isWide}>
         <Slider
           param="incomeTaxRate"
           label="Income tax & UBI"
@@ -278,7 +282,7 @@ export const Controls = memo(function Controls({
         />
       </Section>
 
-      <Section title="Risk">
+      <Section title="Risk" isWide={isWide}>
         <Slider
           param="crashProbability"
           label="Crash probability"

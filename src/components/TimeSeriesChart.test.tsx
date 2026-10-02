@@ -22,6 +22,15 @@ const makeStats = (year: number): YearStats => ({
 
 const stats: YearStats[] = Array.from({ length: 301 }, (_, year) => makeStats(year));
 
+/** An entirely net-indebted population: no value is positive, so log is impossible. */
+const debtStats: YearStats[] = Array.from({ length: 301 }, (_, year) => ({
+  ...makeStats(year),
+  mean: -200_000,
+  median: -250_000,
+  top1Avg: -50_000,
+  bottom50Avg: -300_000,
+}));
+
 const svgTexts = () =>
   Array.from(document.querySelectorAll("text")).map((element) => element.textContent);
 
@@ -62,6 +71,26 @@ function ChartHarness() {
 test("log scale switches the y-axis to powers of ten", async () => {
   await renderChart(true);
   expect(svgTexts()).toContain("$1K");
+});
+
+test("log scale falls back to real ticks for an all-negative population", async () => {
+  // Regression: with no positive values, log10 clamped every series onto one
+  // line and the only tick was "$1". The axis now degrades to linear, so the
+  // negative values get genuine tick labels.
+  await render(
+    <TimeSeriesChart
+      stats={debtStats}
+      logScale
+      selectedYear={0}
+      hoverYear={null}
+      onHoverYear={noop}
+      onSelectYear={noop}
+    />,
+  );
+  const texts = svgTexts();
+  expect(texts.some((t) => t?.startsWith("-$"))).toBe(true);
+  expect(texts).not.toContain("$1K");
+  expect(texts).not.toContain("$1");
 });
 
 test("linear scale uses round currency ticks", async () => {
@@ -116,6 +145,32 @@ test("exposes itself as a slider with the active year as its value", async () =>
   await expect.element(chart).toBeVisible();
   expect(chart.element().getAttribute("aria-valuenow")).toBe("120");
   expect(chart.element().getAttribute("aria-valuemax")).toBe("300");
+});
+
+test("a single-year series renders a valid progress bar", async () => {
+  // Regression: `selectedYear / maxYear` divided by zero when maxYear was 0,
+  // emitting width="NaN" on the progress bar.
+  const { getByRole } = await render(
+    <TimeSeriesChart
+      stats={[makeStats(0)]}
+      logScale={false}
+      selectedYear={0}
+      hoverYear={null}
+      onHoverYear={noop}
+      onSelectYear={noop}
+    />,
+  );
+  const chart = getByRole("slider", { name: /arrow keys/i });
+  await expect.element(chart).toBeVisible();
+
+  const bars = Array.from(document.querySelectorAll("rect")).filter(
+    (r) => r.getAttribute("fill") === "#0284C7",
+  );
+  expect(bars.length).toBeGreaterThan(0);
+  for (const bar of bars) {
+    expect(bar.getAttribute("width")).not.toBe("NaN");
+    expect(Number.isFinite(Number(bar.getAttribute("width")))).toBe(true);
+  }
 });
 
 test("renders an empty state instead of crashing without any years", async () => {

@@ -8,7 +8,6 @@ import {
   MAX_YEAR,
   PRESETS,
   simulate,
-  sortWealth,
   type SimulationSnapshot,
   type WorldParams,
 } from "./lib/sim";
@@ -96,21 +95,7 @@ function App() {
   const snap = snapshots ? snapshots[activeYear] : null;
   const stats = snap?.stats;
   const yearStats = useMemo(() => snapshots?.map((s) => s.stats) ?? [], [snapshots]);
-  // Sorting is cached per year so scrubbing back to a visited year is free and
-  // downstream memos see a stable identity for the same snapshot.
-  const getSortedWealth = useMemo(() => {
-    if (!snapshots) return () => EMPTY_SORTED;
-    const cache = new Map<number, Float64Array>();
-    return (year: number) => {
-      let s = cache.get(year);
-      if (s === undefined) {
-        s = sortWealth(snapshots[year].wealth);
-        cache.set(year, s);
-      }
-      return s;
-    };
-  }, [snapshots]);
-  const sorted = snap ? getSortedWealth(activeYear) : EMPTY_SORTED;
+  const sorted = snap ? snap.sorted : EMPTY_SORTED;
 
   const handlePatch = useCallback(
     (patch: Partial<WorldParams>) => setParams((p) => ({ ...p, ...patch })),
@@ -265,7 +250,16 @@ function App() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 auto-rows-fr">
-                <StatCard item={{ label: "Total wealth", value: formatMoney(stats.total) }} />
+                <StatCard
+                  item={{
+                    label: "Total wealth",
+                    value: formatMoney(stats.total),
+                    sub:
+                      stats.total > 0
+                        ? undefined
+                        : "population is net in debt — shares are undefined",
+                  }}
+                />
                 <StatCard item={{ label: "Mean wealth", value: formatMoney(stats.mean) }} />
                 <StatCard item={{ label: "Median wealth", value: formatMoney(stats.median) }} />
                 <StatCard

@@ -102,7 +102,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
 
     const lo = yScale.lo;
     const hi = yScale.hi;
-    const yTicks = logScale
+    const yTicks = yScale.log
       ? (() => {
           const ticks: number[] = [];
           const loPow = Math.ceil(lo);
@@ -213,6 +213,9 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   };
 
   const labelX = Math.min(W - PR - 56, Math.max(PL, activeX - 28));
+  // A single-year series has maxYear 0, which would divide by zero and emit an
+  // invalid `width="NaN"` on the progress bar.
+  const progress = maxYear > 0 ? Math.min(1, Math.max(0, selectedYear / maxYear)) : 0;
 
   return (
     <div ref={containerRef} className="w-full">
@@ -347,7 +350,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
         <rect
           x={PL}
           y={H - 6}
-          width={Math.max(0, innerW * Math.min(1, Math.max(0, selectedYear / maxYear)))}
+          width={Math.max(0, innerW * progress)}
           height={4}
           rx={2}
           fill={PALETTE.sky}
