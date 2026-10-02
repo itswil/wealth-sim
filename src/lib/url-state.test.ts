@@ -35,6 +35,28 @@ describe("parseWorldFromSearch", () => {
     expect(parseWorldFromSearch("?foo=1&bar=2")).toBeNull();
   });
 
+  test("accepts a seed or year on its own", () => {
+    // Regression: requiring a param match silently discarded the seed from
+    // hand-written and third-party links like `?seed=7&year=50`.
+    const seedOnly = parseWorldFromSearch("?seed=7");
+    expect(seedOnly?.seed).toBe(7);
+    expect(seedOnly?.year).toBe(0);
+    expect(seedOnly?.params).toEqual({});
+
+    const both = parseWorldFromSearch("?seed=7&year=50");
+    expect(both?.seed).toBe(7);
+    expect(both?.year).toBe(50);
+
+    expect(parseWorldFromSearch("?year=50")?.year).toBe(50);
+  });
+
+  test("clamps a standalone seed and year the same way", () => {
+    expect(parseWorldFromSearch("?seed=1e12")?.seed).toBe(DEFAULT_SEED);
+    expect(parseWorldFromSearch("?year=9999")?.year).toBe(MAX_YEAR);
+    expect(parseWorldFromSearch("?year=-10")?.year).toBe(0);
+    expect(parseWorldFromSearch("?seed=nope")?.seed).toBe(DEFAULT_SEED);
+  });
+
   test("falls back to the default seed for missing or invalid seeds", () => {
     expect(parseWorldFromSearch("?populationSize=100")?.seed).toBe(DEFAULT_SEED);
     expect(parseWorldFromSearch("?populationSize=100&seed=nope")?.seed).toBe(DEFAULT_SEED);

@@ -55,6 +55,40 @@ describe("makeYScale", () => {
     expect(scale.span).toBe(1);
     expect(Number.isFinite(makeY(scale, 10, 100)(5))).toBe(true);
   });
+
+  test("reports whether the axis is actually logarithmic", () => {
+    expect(makeYScale(1, 1000, true).log).toBe(true);
+    expect(makeYScale(1, 1000, false).log).toBe(false);
+  });
+
+  test("falls back to linear when the whole series is non-positive", () => {
+    // Log10 is undefined at or below zero, so a fully-indebted population has
+    // no log axis: every value clamps to the floor and the series flattens onto
+    // one line. Reported via `log` so the caller can label it correctly.
+    const scale = makeYScale(-500_000, -100_000, true);
+    expect(scale.log).toBe(false);
+    expect(scale.lo).toBe(-500_000);
+    expect(scale.hi).toBe(-100_000);
+    const y = makeY(scale, 0, 100);
+    // A real range, not four series collapsed onto one line.
+    expect(y(-100_000)).toBeCloseTo(0, 10);
+    expect(y(-500_000)).toBeCloseTo(100, 10);
+    expect(y(-300_000)).toBeCloseTo(50, 10);
+  });
+
+  test("falls back to linear when every value is exactly zero", () => {
+    const scale = makeYScale(0, 0, true);
+    expect(scale.log).toBe(false);
+    expect(Number.isFinite(scale.transform(0))).toBe(true);
+  });
+
+  test("still uses log space when only some values are non-positive", () => {
+    // Mixed populations have a positive max, so a log axis is meaningful and
+    // negatives clamp to the floor as before.
+    const scale = makeYScale(-500_000, 1000, true);
+    expect(scale.log).toBe(true);
+    expect(scale.transform(-500_000)).toBe(scale.transform(1));
+  });
 });
 
 describe("makeY and makeX", () => {

@@ -60,6 +60,17 @@ test("reset restores default parameters", async () => {
   expect((population.element() as HTMLInputElement).value).toBe("1000");
 });
 
+test("restores a world from a seed-and-year-only link", async () => {
+  // Regression: a link carrying just `seed` and `year` used to be discarded
+  // wholesale, silently reverting to the default seed.
+  window.history.replaceState(null, "", "/?seed=1234&year=42");
+  await render(<App />);
+
+  const params = () => new URLSearchParams(window.location.search);
+  await expect.poll(() => params().get("year"), { timeout: 5000 }).toBe("42");
+  expect(params().get("seed")).toBe("1234");
+});
+
 test("writes the world into the URL once the year settles", async () => {
   // The sync is deliberately debounced, so the URL lags the sliders slightly.
   window.history.replaceState(null, "", "/");

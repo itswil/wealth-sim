@@ -63,8 +63,14 @@ export function parseWorldFromSearch(search: string): UrlWorld | null {
       matched = true;
     }
   }
-  if (!matched) return null;
-  return { params, seed: seedField.parse(raw.seed), year: yearField.parse(raw.year) };
+  // `seed` and `year` count as a match on their own: a hand-written or
+  // third-party link such as `?seed=7&year=50` carries a real world even though
+  // every slider falls back to its default. Returning null here would silently
+  // discard the seed.
+  const seed = seedField.parse(raw.seed);
+  const year = yearField.parse(raw.year);
+  if (!matched && raw.seed === undefined && raw.year === undefined) return null;
+  return { params, seed, year };
 }
 
 export function readWorldFromUrl(): UrlWorld | null {

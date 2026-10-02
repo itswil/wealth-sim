@@ -10,18 +10,31 @@ export interface YScale {
   lo: number;
   hi: number;
   span: number;
+  /**
+   * Whether the axis is actually logarithmic. A log axis cannot represent a
+   * series whose maximum is not positive, so `makeYScale` silently falls back
+   * to linear there — read this rather than the caller's requested mode to
+   * decide which ticks to draw.
+   */
+  log: boolean;
   transform: (v: number) => number;
 }
 
 export function makeYScale(minV: number, maxV: number, logScale: boolean): YScale {
+  // Log10 is undefined at or below zero, so a population that is entirely in
+  // debt (or entirely at zero) has no log axis to draw: every value would clamp
+  // to the floor and flatten the series into a single line. Fall back to linear
+  // and report it, so callers do not label the axis as logarithmic anyway.
+  const log = logScale && maxV > 0;
   const floor = Math.max(maxV * 1e-4, 1);
-  const lo = logScale ? Math.log10(floor) : minV;
-  const hi = logScale ? Math.log10(Math.max(maxV, floor)) : maxV;
+  const lo = log ? Math.log10(floor) : minV;
+  const hi = log ? Math.log10(Math.max(maxV, floor)) : maxV;
   return {
     lo,
     hi,
     span: hi - lo || 1,
-    transform: (v) => (logScale ? Math.log10(Math.max(v, floor)) : v),
+    log,
+    transform: (v) => (log ? Math.log10(Math.max(v, floor)) : v),
   };
 }
 
