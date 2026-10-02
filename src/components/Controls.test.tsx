@@ -2,7 +2,7 @@ import { render } from "vitest-browser-react";
 import { userEvent } from "vitest/browser";
 import { expect, test } from "vitest";
 import { Controls, type ControlsProps } from "./Controls";
-import { DEFAULT_PARAMS, type WorldParams } from "../lib/sim";
+import { DEFAULT_PARAMS, PARAM_RANGES, type WorldParams } from "../lib/sim";
 
 const noop = () => {};
 
@@ -119,5 +119,20 @@ test("renders the params it is given", async () => {
     const population = getByRole("slider", { name: /Population/ });
     await expect.element(population).toBeVisible();
     expect((population.element() as HTMLInputElement).value).toBe("250");
+  });
+});
+
+test("every slider takes its bounds from PARAM_RANGES", async () => {
+  await withViewport(true, async () => {
+    await renderControls();
+    const canonical = new Set(
+      Object.values(PARAM_RANGES).map((r) => `${r.min}/${r.max}/${r.step}`),
+    );
+    const sliders = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="range"]'));
+    // One slider per parameter, and none may hardcode a bound of its own.
+    expect(sliders).toHaveLength(Object.keys(PARAM_RANGES).length);
+    for (const slider of sliders) {
+      expect(canonical.has(`${slider.min}/${slider.max}/${slider.step}`)).toBe(true);
+    }
   });
 });

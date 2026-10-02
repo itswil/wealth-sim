@@ -1,29 +1,19 @@
 import { z } from "zod";
-import { MAX_YEAR, type WorldParams } from "./sim";
+import { MAX_YEAR, PARAM_RANGES, type WorldParams } from "./sim";
 
 export const DEFAULT_SEED = 42;
 
 const SEED_MAX = 1e9 - 1;
 
-export const URL_PARAM_RANGES: Record<keyof WorldParams, readonly [number, number]> = {
-  populationSize: [50, 5000],
-  meanIncome: [20000, 200000],
-  incomeInequality: [0.1, 2],
-  initialWealth: [0, 200000],
-  initialInequality: [0.1, 2.5],
-  costOfLiving: [0, 50000],
-  returnRate: [0, 0.15],
-  savingsRate: [0, 0.3],
-  incomeTaxRate: [0, 0.8],
-  wealthTaxRate: [0, 0.05],
-  inheritanceRate: [0, 1],
-  crashProbability: [0, 0.25],
-  crashSeverity: [0, 0.8],
-  maxDebtYears: [0, 10],
-  returnScale: [0, 1],
-  incomeShock: [0, 0.4],
-  productivityGrowth: [0, 0.05],
-};
+// Derived from PARAM_RANGES so the URL contract can never drift from the
+// sliders the user actually sees.
+export const URL_PARAM_RANGES: Record<keyof WorldParams, readonly [number, number]> =
+  Object.fromEntries(
+    (Object.keys(PARAM_RANGES) as (keyof WorldParams)[]).map((key) => [
+      key,
+      [PARAM_RANGES[key].min, PARAM_RANGES[key].max] as const,
+    ]),
+  ) as Record<keyof WorldParams, readonly [number, number]>;
 
 // Coerces a raw query-string value to a finite number, or undefined if absent
 // or unparseable — invalid values are dropped rather than rejected.

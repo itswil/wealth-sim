@@ -2,9 +2,8 @@ import { useState } from "react";
 import { render } from "vitest-browser-react";
 import { userEvent } from "vitest/browser";
 import { expect, test } from "vitest";
-import { SERIES, TimeSeriesChart, WealthDistribution } from "./Charts";
-import { PALETTE } from "../lib/palette";
-import { sortWealth, type YearStats } from "../lib/sim";
+import { SERIES, TimeSeriesChart } from "./TimeSeriesChart";
+import type { YearStats } from "../lib/sim";
 
 const noop = () => {};
 
@@ -15,11 +14,10 @@ const makeStats = (year: number): YearStats => ({
   median: 1_000,
   gini: 0.6,
   top1Avg: 1_000_000,
-  top10Avg: 200_000,
   bottom50Avg: 100,
   top1Share: 0.4,
-  top10Share: 0.7,
   bottom50Share: 0.01,
+  meanIncome: 50_000,
 });
 
 const stats: YearStats[] = Array.from({ length: 301 }, (_, year) => makeStats(year));
@@ -61,11 +59,6 @@ function ChartHarness() {
   );
 }
 
-const renderDistribution = async (values: number[]) =>
-  render(
-    <WealthDistribution sorted={sortWealth(Float64Array.from(values))} mean={25} median={26} />,
-  );
-
 test("log scale switches the y-axis to powers of ten", async () => {
   await renderChart(true);
   expect(svgTexts()).toContain("$1K");
@@ -85,7 +78,7 @@ test("labels every series on the chart", async () => {
 
 test("hovering reports the year under the pointer", async () => {
   const { getByRole, getByTestId } = await render(<ChartHarness />);
-  const chart = getByRole("img", { name: /arrow keys/i });
+  const chart = getByRole("slider", { name: /arrow keys/i });
   await expect.element(chart).toBeVisible();
 
   await userEvent.hover(chart);
@@ -94,7 +87,7 @@ test("hovering reports the year under the pointer", async () => {
 
 test("clicking selects a year on the chart", async () => {
   const { getByRole, getByTestId } = await render(<ChartHarness />);
-  const chart = getByRole("img", { name: /arrow keys/i });
+  const chart = getByRole("slider", { name: /arrow keys/i });
   await expect.element(chart).toBeVisible();
 
   await userEvent.click(chart);
@@ -108,20 +101,33 @@ test("clicking selects a year on the chart", async () => {
   expect(year).toBeLessThanOrEqual(300);
 });
 
-test("highlights the top-1% bins for a 50-person world", async () => {
-  await renderDistribution(Array.from({ length: 50 }, (_, i) => i + 1));
-  const red = document.querySelectorAll(`rect[fill="${PALETTE.vermillion}"]`);
-  const blue = document.querySelectorAll(`rect[fill="${PALETTE.blue}"]`);
-  expect(red.length).toBeGreaterThan(0);
-  expect(blue.length).toBeGreaterThan(0);
+test("exposes itself as a slider with the active year as its value", async () => {
+  const { getByRole } = await render(
+    <TimeSeriesChart
+      stats={stats}
+      logScale={false}
+      selectedYear={120}
+      hoverYear={null}
+      onHoverYear={noop}
+      onSelectYear={noop}
+    />,
+  );
+  const chart = getByRole("slider", { name: /arrow keys/i });
+  await expect.element(chart).toBeVisible();
+  expect(chart.element().getAttribute("aria-valuenow")).toBe("120");
+  expect(chart.element().getAttribute("aria-valuemax")).toBe("300");
 });
 
-test("shows the empty state when everyone is in debt", async () => {
-  const { getByText } = await renderDistribution([-5, -1, 0]);
-  await expect.element(getByText(/no positive wealth/)).toBeVisible();
-});
-
-test("counts people in debt", async () => {
-  await renderDistribution([-5, -1, 10, 20, 30]);
-  expect(svgTexts().some((text) => text?.endsWith(" in debt"))).toBe(true);
+test("renders an empty state instead of crashing without any years", async () => {
+  const { getByText } = await render(
+    <TimeSeriesChart
+      stats={[]}
+      logScale={false}
+      selectedYear={0}
+      hoverYear={null}
+      onHoverYear={noop}
+      onSelectYear={noop}
+    />,
+  );
+  await expect.element(getByText(/no years to chart/i)).toBeVisible();
 });

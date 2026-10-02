@@ -1,7 +1,12 @@
 {
-  "name": "starter",
-  "version": "0.0.0",
+  "name": "wealth-sim",
+  "version": "0.1.0",
   "private": true,
+  "description": "Interactive agent-based simulator for exploring how wealth accumulates and concentrates across a population over 300 years.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itswil/wealth-sim.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

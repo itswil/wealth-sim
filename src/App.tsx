@@ -1,19 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controls } from "./components/Controls";
-import { Card, TimeSeriesChart, WealthDistribution, SERIES } from "./components/Charts";
+import { Card } from "./components/Card";
+import { TimeSeriesChart, SERIES } from "./components/TimeSeriesChart";
+import { WealthDistribution } from "./components/WealthDistribution";
 import {
   DEFAULT_PARAMS,
   MAX_YEAR,
   PRESETS,
   simulate,
   sortWealth,
+  type SimulationSnapshot,
   type WorldParams,
 } from "./lib/sim";
-import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./lib/format";
+import {
+  formatMoney,
+  formatMultiple,
+  formatMultiplier,
+  formatNumber,
+  formatPercent,
+} from "./lib/format";
 import { DEFAULT_SEED, readWorldFromUrl, serializeWorldToSearch } from "./lib/url-state";
 import { useTheme } from "./hooks/use-theme";
 
 const YEAR_PRESETS = [0, 25, 50, 100, 200, MAX_YEAR];
+const EMPTY_SORTED = new Float64Array(0);
+/** Long enough to collapse playback ticks, short enough to feel instant. */
+const URL_SYNC_DEBOUNCE_MS = 500;
 
 interface StatItem {
   label: string;
@@ -47,7 +59,9 @@ function App() {
   const [selectedYear, setSelectedYear] = useState(() => initialWorld?.year ?? 0);
   const [logScale, setLogScale] = useState(false);
   const [hoverYear, setHoverYear] = useState<number | null>(null);
-  const [snapshots, setSnapshots] = useState(() => simulate(params, seed));
+  // The simulation runs once, after paint, in the debounce effect below — the
+  // first render shows a loading state instead of blocking on the full run.
+  const [snapshots, setSnapshots] = useState<SimulationSnapshot[] | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -67,17 +81,25 @@ function App() {
   }, [isPlaying, selectedYear]);
 
   useEffect(() => {
-    const search = serializeWorldToSearch(params, seed, selectedYear);
-    window.history.replaceState(null, "", search);
+    // Debounced: WebKit throws SecurityError past ~100 replaceState calls per
+    // 10-30s, and playback changes the year every 30ms. Debouncing means the
+    // URL is written once the year settles (i.e. when playback pauses) instead
+    // of 33 times a second.
+    const t = setTimeout(() => {
+      const search = serializeWorldToSearch(params, seed, selectedYear);
+      window.history.replaceState(null, "", search);
+    }, URL_SYNC_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [params, seed, selectedYear]);
 
-  const activeYear = Math.min(snapshots.length - 1, hoverYear ?? selectedYear);
-  const snap = snapshots[activeYear];
-  const stats = snap.stats;
-  const yearStats = useMemo(() => snapshots.map((s) => s.stats), [snapshots]);
+  const activeYear = Math.min(MAX_YEAR, hoverYear ?? selectedYear);
+  const snap = snapshots ? snapshots[activeYear] : null;
+  const stats = snap?.stats;
+  const yearStats = useMemo(() => snapshots?.map((s) => s.stats) ?? [], [snapshots]);
   // Sorting is cached per year so scrubbing back to a visited year is free and
   // downstream memos see a stable identity for the same snapshot.
   const getSortedWealth = useMemo(() => {
+    if (!snapshots) return () => EMPTY_SORTED;
     const cache = new Map<number, Float64Array>();
     return (year: number) => {
       let s = cache.get(year);
@@ -88,7 +110,7 @@ function App() {
       return s;
     };
   }, [snapshots]);
-  const sorted = getSortedWealth(activeYear);
+  const sorted = snap ? getSortedWealth(activeYear) : EMPTY_SORTED;
 
   const handlePatch = useCallback(
     (patch: Partial<WorldParams>) => setParams((p) => ({ ...p, ...patch })),
@@ -120,6 +142,7 @@ function App() {
 
   const handleReset = useCallback(() => {
     setParams(DEFAULT_PARAMS);
+    setSeed(DEFAULT_SEED);
     setSelectedYear(0);
     setHoverYear(null);
     setIsPlaying(false);
@@ -216,168 +239,209 @@ function App() {
         </aside>
 
         <section className="min-w-0 space-y-4">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                Year
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tabular-nums dark:text-slate-50">
-                {formatNumber(stats.year)}
-              </span>
-              <span className="text-xs text-slate-400">
-                {hoverYear !== null ? "hovering" : "selected"}
-              </span>
-            </div>
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
-            <div className="flex items-baseline gap-2">
-              <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                Population
-              </span>
-              <span className="text-xl font-extrabold text-slate-900 tabular-nums dark:text-slate-50">
-                {formatNumber(snap.wealth.length)}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 auto-rows-fr">
-            <StatCard item={{ label: "Total wealth", value: formatMoney(stats.total) }} />
-            <StatCard item={{ label: "Mean wealth", value: formatMoney(stats.mean) }} />
-            <StatCard item={{ label: "Median wealth", value: formatMoney(stats.median) }} />
-            <StatCard
-              item={{
-                label: "Gini",
-                value: stats.gini.toFixed(2),
-                sub: "0 = equal, 1 = one person owns all",
-              }}
-            />
-            <StatCard
-              item={{
-                label: "Top 1% share",
-                value: formatPercent(stats.top1Share),
-                sub:
-                  stats.median > 0
-                    ? `${formatMultiplier(stats.top1Avg / stats.median)} median wealth`
-                    : undefined,
-              }}
-            />
-            <StatCard
-              item={{
-                label: "Bottom 50% share",
-                value: formatPercent(stats.bottom50Share),
-                sub: stats.median > 0 ? `owns ${formatMoney(stats.bottom50Avg)} avg` : undefined,
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            <Card title="Wealth over time">
-              <div className="mb-2 flex flex-wrap items-center gap-3">
-                {seriesLegend.map((l) => (
-                  <span
-                    key={l.label}
-                    className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
-                  >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
-                    {l.label}
+          {stats && snap ? (
+            <>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                    Year
                   </span>
-                ))}
-                <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
-                  <button
-                    type="button"
-                    onClick={handleTogglePlay}
-                    aria-label={isPlaying ? "Pause animation" : "Play animation"}
-                    className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-600 text-white transition-colors hover:bg-sky-700"
-                  >
-                    {isPlaying ? (
-                      <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
-                        <rect x="1.5" y="1" width="3" height="10" rx="0.5" fill="currentColor" />
-                        <rect x="7.5" y="1" width="3" height="10" rx="0.5" fill="currentColor" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
-                        <path d="M2.5 1.2 L10.5 6 L2.5 10.8 Z" fill="currentColor" />
-                      </svg>
-                    )}
-                  </button>
-                  <span className="text-xs text-slate-400">Jump to:</span>
-                  {YEAR_PRESETS.map((y) => (
-                    <button
-                      key={y}
-                      type="button"
-                      onClick={() => {
-                        setSelectedYear(y);
-                        setHoverYear(null);
-                      }}
-                      className={`rounded-md px-1.5 py-0.5 text-xs font-semibold transition-colors ${
-                        activeYear === y
-                          ? "bg-sky-600 text-white"
-                          : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-                      }`}
-                    >
-                      {y}
-                    </button>
-                  ))}
-                  <label className="ml-1 flex cursor-pointer select-none items-center gap-2">
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                      Log scale
-                    </span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={logScale}
-                      onClick={() => setLogScale((v) => !v)}
-                      className={`relative h-5 w-9 rounded-full transition-colors ${
-                        logScale ? "bg-sky-600" : "bg-slate-300"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                          logScale ? "translate-x-4" : ""
-                        }`}
-                      />
-                    </button>
-                  </label>
+                  <span className="text-xl font-extrabold text-slate-900 tabular-nums dark:text-slate-50">
+                    {formatNumber(stats.year)}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {hoverYear !== null ? "hovering" : "selected"}
+                  </span>
+                </div>
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                    Population
+                  </span>
+                  <span className="text-xl font-extrabold text-slate-900 tabular-nums dark:text-slate-50">
+                    {formatNumber(snap.wealth.length)}
+                  </span>
                 </div>
               </div>
-              <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 dark:border-slate-700">
-                {SERIES.map((s) => (
-                  <span
-                    key={s.key}
-                    className="flex items-center gap-1.5 text-xs font-semibold tabular-nums"
-                    style={{ color: s.color }}
-                  >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
-                    {formatMoney(stats[s.key])}
-                  </span>
-                ))}
-              </div>
-              <TimeSeriesChart
-                stats={yearStats}
-                logScale={logScale}
-                selectedYear={selectedYear}
-                hoverYear={hoverYear}
-                onHoverYear={setHoverYear}
-                onSelectYear={handleSelectYear}
-                dark={isDark}
-              />
-            </Card>
-          </div>
 
-          <Card
-            title="Wealth distribution"
-            sub={
-              hoverYear !== null
-                ? `Year ${hoverYear} · red = top 1%`
-                : `Year ${activeYear} · red = top 1%`
-            }
-          >
-            <WealthDistribution
-              sorted={sorted}
-              mean={stats.mean}
-              median={stats.median}
-              dark={isDark}
-            />
-          </Card>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 auto-rows-fr">
+                <StatCard item={{ label: "Total wealth", value: formatMoney(stats.total) }} />
+                <StatCard item={{ label: "Mean wealth", value: formatMoney(stats.mean) }} />
+                <StatCard item={{ label: "Median wealth", value: formatMoney(stats.median) }} />
+                <StatCard
+                  item={{
+                    label: "Wealth ÷ income",
+                    value: formatMultiple(stats.mean / stats.meanIncome),
+                    sub: "mean net worth in years of income",
+                  }}
+                />
+                <StatCard
+                  item={{
+                    label: "Gini",
+                    value: stats.gini.toFixed(2),
+                    sub: "0 = equal, 1 = one person owns all",
+                  }}
+                />
+                <StatCard
+                  item={{
+                    label: "Top 1% share",
+                    value: formatPercent(stats.top1Share),
+                    sub:
+                      stats.median > 0
+                        ? `${formatMultiplier(stats.top1Avg / stats.median)} median wealth`
+                        : undefined,
+                  }}
+                />
+                <StatCard
+                  item={{
+                    label: "Bottom 50% share",
+                    value: formatPercent(stats.bottom50Share),
+                    sub:
+                      stats.median > 0 ? `owns ${formatMoney(stats.bottom50Avg)} avg` : undefined,
+                  }}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <Card title="Wealth over time">
+                  <div className="mb-2 flex flex-wrap items-center gap-3">
+                    {seriesLegend.map((l) => (
+                      <span
+                        key={l.label}
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: l.color }}
+                        />
+                        {l.label}
+                      </span>
+                    ))}
+                    <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+                      <button
+                        type="button"
+                        onClick={handleTogglePlay}
+                        aria-label={isPlaying ? "Pause animation" : "Play animation"}
+                        className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-600 text-white transition-colors hover:bg-sky-700"
+                      >
+                        {isPlaying ? (
+                          <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
+                            <rect
+                              x="1.5"
+                              y="1"
+                              width="3"
+                              height="10"
+                              rx="0.5"
+                              fill="currentColor"
+                            />
+                            <rect
+                              x="7.5"
+                              y="1"
+                              width="3"
+                              height="10"
+                              rx="0.5"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
+                            <path d="M2.5 1.2 L10.5 6 L2.5 10.8 Z" fill="currentColor" />
+                          </svg>
+                        )}
+                      </button>
+                      <span className="text-xs text-slate-400">Jump to:</span>
+                      {YEAR_PRESETS.map((y) => (
+                        <button
+                          key={y}
+                          type="button"
+                          onClick={() => {
+                            setSelectedYear(y);
+                            setHoverYear(null);
+                          }}
+                          className={`rounded-md px-1.5 py-0.5 text-xs font-semibold transition-colors ${
+                            activeYear === y
+                              ? "bg-sky-600 text-white"
+                              : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                          }`}
+                        >
+                          {y}
+                        </button>
+                      ))}
+                      <label className="ml-1 flex cursor-pointer select-none items-center gap-2">
+                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                          Log scale
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={logScale}
+                          onClick={() => setLogScale((v) => !v)}
+                          className={`relative h-5 w-9 rounded-full transition-colors ${
+                            logScale ? "bg-sky-600" : "bg-slate-300"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                              logScale ? "translate-x-4" : ""
+                            }`}
+                          />
+                        </button>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 dark:border-slate-700">
+                    {SERIES.map((s) => (
+                      <span
+                        key={s.key}
+                        className="flex items-center gap-1.5 text-xs font-semibold tabular-nums"
+                        style={{ color: s.color }}
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: s.color }}
+                        />
+                        {formatMoney(stats[s.key])}
+                      </span>
+                    ))}
+                  </div>
+                  <TimeSeriesChart
+                    stats={yearStats}
+                    logScale={logScale}
+                    selectedYear={selectedYear}
+                    hoverYear={hoverYear}
+                    onHoverYear={setHoverYear}
+                    onSelectYear={handleSelectYear}
+                    dark={isDark}
+                  />
+                </Card>
+              </div>
+
+              <Card
+                title="Wealth distribution"
+                sub={
+                  hoverYear !== null
+                    ? `Year ${hoverYear} · red = top 1%`
+                    : `Year ${activeYear} · red = top 1%`
+                }
+              >
+                <WealthDistribution
+                  sorted={sorted}
+                  mean={stats.mean}
+                  median={stats.median}
+                  dark={isDark}
+                />
+              </Card>
+            </>
+          ) : (
+            <div
+              role="status"
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800"
+            >
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                Running the 300-year simulation…
+              </p>
+            </div>
+          )}
         </section>
       </main>
     </div>

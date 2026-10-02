@@ -9,6 +9,12 @@ test("renders the title", async () => {
   await expect.element(getByText("Wealth Simulator")).toBeVisible();
 });
 
+test("shows the wealth-to-income ratio alongside nominal wealth", async () => {
+  const { getByText } = await render(<App />);
+  await expect.element(getByText("Wealth ÷ income")).toBeVisible();
+  await expect.element(getByText("mean net worth in years of income")).toBeVisible();
+});
+
 test("play button toggles between play and pause", async () => {
   const { getByRole } = await render(<App />);
   const play = getByRole("button", { name: "Play animation" });
@@ -23,7 +29,7 @@ test("play button toggles between play and pause", async () => {
 
 test("chart keyboard navigation jumps to the last year", async () => {
   const { getByRole } = await render(<App />);
-  const chart = getByRole("img", { name: /arrow keys/i });
+  const chart = getByRole("slider", { name: /arrow keys/i });
   await expect.element(chart).toBeVisible();
 
   await userEvent.click(chart);
@@ -52,4 +58,15 @@ test("reset restores default parameters", async () => {
 
   await getByRole("button", { name: "Reset" }).click();
   expect((population.element() as HTMLInputElement).value).toBe("1000");
+});
+
+test("writes the world into the URL once the year settles", async () => {
+  // The sync is deliberately debounced, so the URL lags the sliders slightly.
+  window.history.replaceState(null, "", "/");
+  await render(<App />);
+
+  const params = () => new URLSearchParams(window.location.search);
+  await expect.poll(() => params().get("year"), { timeout: 5000 }).toBe("0");
+  expect(params().get("seed")).toBe("42");
+  expect(params().get("populationSize")).toBe("1000");
 });

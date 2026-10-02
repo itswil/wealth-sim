@@ -1,22 +1,21 @@
-import { memo, useId, type ReactNode } from "react";
-import type { WorldParams } from "../lib/sim";
-import { PRESETS } from "../lib/sim";
+import { memo, useEffect, useId, useState, type ReactNode } from "react";
+import { PARAM_RANGES, PRESETS, type WorldParams } from "../lib/sim";
 import { formatMoney, formatPercent } from "../lib/format";
 import { useMediaQuery } from "../hooks/use-media-query";
 
 interface SliderProps {
+  /** Which parameter this slider edits; bounds and step come from PARAM_RANGES. */
+  param: keyof WorldParams;
   label: string;
   value: number;
-  min: number;
-  max: number;
-  step: number;
   display: string;
   hint?: string;
-  onChange: (v: number) => void;
+  onChange: (patch: Partial<WorldParams>) => void;
 }
 
-function Slider({ label, value, min, max, step, display, hint, onChange }: SliderProps) {
+function Slider({ param, label, value, display, hint, onChange }: SliderProps) {
   const hintId = useId();
+  const { min, max, step } = PARAM_RANGES[param];
   return (
     <label className="block">
       <div className="flex items-baseline justify-between gap-2">
@@ -32,7 +31,7 @@ function Slider({ label, value, min, max, step, display, hint, onChange }: Slide
         step={step}
         value={value}
         aria-describedby={hint ? hintId : undefined}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => onChange({ [param]: Number(e.target.value) } as Partial<WorldParams>)}
         className="mt-1 w-full accent-sky-600"
       />
       {hint ? (
@@ -51,9 +50,14 @@ interface SectionProps {
 
 function Section({ title, children }: SectionProps) {
   const isWide = useMediaQuery("(min-width: 1024px)");
+  // Controlled so manual expand/collapse survives re-renders, while still
+  // tracking the viewport breakpoint when it changes.
+  const [open, setOpen] = useState(isWide);
+  useEffect(() => setOpen(isWide), [isWide]);
   return (
     <details
-      open={isWide}
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
       className="group border-t border-slate-200 px-4 py-3 first:border-t-0 dark:border-slate-700"
     >
       <summary className="flex cursor-pointer select-none list-none items-center justify-between [&::-webkit-details-marker]:hidden">
@@ -125,23 +129,19 @@ export const Controls = memo(function Controls({
             Any change re-runs the 300-year simulation and updates every chart.
           </p>
           <Slider
+            param="populationSize"
             label="Population"
             value={params.populationSize}
-            min={50}
-            max={5000}
-            step={50}
             display={`${params.populationSize.toLocaleString()} people`}
-            onChange={(v) => onChange({ populationSize: v })}
+            onChange={onChange}
           />
           <Slider
+            param="initialWealth"
             label="Initial wealth (avg)"
             value={params.initialWealth}
-            min={0}
-            max={200000}
-            step={1000}
             display={formatMoney(params.initialWealth)}
             hint="Baseline wealth handed to each person at year 0."
-            onChange={(v) => onChange({ initialWealth: v })}
+            onChange={onChange}
           />
         </div>
       </Section>
@@ -167,163 +167,133 @@ export const Controls = memo(function Controls({
           {PRESETS.find((p) => p.id === presetId)?.blurb ?? ""}
         </p>
         <Slider
+          param="incomeInequality"
           label="Income inequality"
           value={params.incomeInequality}
-          min={0.1}
-          max={2}
-          step={0.05}
           display={params.incomeInequality.toFixed(2)}
           hint="Spread of the income distribution (higher = wider)."
-          onChange={(v) => onChange({ incomeInequality: v })}
+          onChange={onChange}
         />
         <Slider
+          param="initialInequality"
           label="Initial wealth inequality"
           value={params.initialInequality}
-          min={0.1}
-          max={2.5}
-          step={0.05}
           display={params.initialInequality.toFixed(2)}
           hint="How concentrated starting wealth is."
-          onChange={(v) => onChange({ initialInequality: v })}
+          onChange={onChange}
         />
       </Section>
 
       <Section title="Economy">
         <Slider
+          param="meanIncome"
           label="Mean income"
           value={params.meanIncome}
-          min={20000}
-          max={200000}
-          step={1000}
           display={formatMoney(params.meanIncome)}
           hint="Peak-earning average. Careers rise and fall with age."
-          onChange={(v) => onChange({ meanIncome: v })}
+          onChange={onChange}
         />
         <Slider
+          param="returnRate"
           label="Investment return"
           value={params.returnRate}
-          min={0}
-          max={0.15}
-          step={0.005}
           display={`${(params.returnRate * 100).toFixed(1)}% / yr`}
           hint="Returns compound on existing wealth — the rich get richer."
-          onChange={(v) => onChange({ returnRate: v })}
+          onChange={onChange}
         />
         <Slider
+          param="savingsRate"
           label="Savings rate"
           value={params.savingsRate}
-          min={0}
-          max={0.3}
-          step={0.005}
           display={`${(params.savingsRate * 100).toFixed(1)}%`}
           hint="Share of income saved after living costs."
-          onChange={(v) => onChange({ savingsRate: v })}
+          onChange={onChange}
         />
         <Slider
+          param="costOfLiving"
           label="Cost of living"
           value={params.costOfLiving}
-          min={0}
-          max={50000}
-          step={500}
           display={formatMoney(params.costOfLiving)}
           hint="Fixed yearly costs everyone must pay. Bites the poor hardest."
-          onChange={(v) => onChange({ costOfLiving: v })}
+          onChange={onChange}
         />
         <Slider
+          param="productivityGrowth"
           label="Productivity growth"
           value={params.productivityGrowth}
-          min={0}
-          max={0.05}
-          step={0.005}
           display={`${(params.productivityGrowth * 100).toFixed(1)}% / yr`}
           hint="Incomes and living costs grow each year."
-          onChange={(v) => onChange({ productivityGrowth: v })}
+          onChange={onChange}
         />
         <Slider
+          param="returnScale"
           label="Scale-dependent returns"
           value={params.returnScale}
-          min={0}
-          max={1}
-          step={0.05}
           display={params.returnScale.toFixed(2)}
-          hint="Bigger portfolios earn higher effective returns; debt costs more."
-          onChange={(v) => onChange({ returnScale: v })}
+          hint="Bigger portfolios earn higher returns; deeper debts accrue faster."
+          onChange={onChange}
         />
         <Slider
+          param="incomeShock"
           label="Income volatility"
           value={params.incomeShock}
-          min={0}
-          max={0.4}
-          step={0.01}
           display={`${(params.incomeShock * 100).toFixed(0)}%`}
           hint="Year-to-year random swings in individual income."
-          onChange={(v) => onChange({ incomeShock: v })}
+          onChange={onChange}
         />
       </Section>
 
       <Section title="Policy">
         <Slider
+          param="incomeTaxRate"
           label="Income tax & UBI"
           value={params.incomeTaxRate}
-          min={0}
-          max={0.8}
-          step={0.01}
           display={formatPercent(params.incomeTaxRate, 0)}
           hint="Flat income tax pooled and paid out equally to everyone."
-          onChange={(v) => onChange({ incomeTaxRate: v })}
+          onChange={onChange}
         />
         <Slider
+          param="wealthTaxRate"
           label="Wealth tax"
           value={params.wealthTaxRate}
-          min={0}
-          max={0.05}
-          step={0.001}
           display={`${(params.wealthTaxRate * 100).toFixed(1)}% / yr`}
           hint="Annual levy on positive wealth, rebated equally to everyone."
-          onChange={(v) => onChange({ wealthTaxRate: v })}
+          onChange={onChange}
         />
         <Slider
+          param="maxDebtYears"
           label="Borrowing limit"
           value={params.maxDebtYears}
-          min={0}
-          max={10}
-          step={0.5}
           display={`${params.maxDebtYears.toFixed(1)} yrs income`}
           hint="Max debt in years of income. Spending is cut at the limit; beyond it, bankruptcy clears debts."
-          onChange={(v) => onChange({ maxDebtYears: v })}
+          onChange={onChange}
         />
         <Slider
+          param="inheritanceRate"
           label="Inheritance passed on"
           value={params.inheritanceRate}
-          min={0}
-          max={1}
-          step={0.01}
           display={`${Math.round(params.inheritanceRate * 100)}%`}
           hint="Share of an estate inherited by the heir. Rest vanishes (estate tax)."
-          onChange={(v) => onChange({ inheritanceRate: v })}
+          onChange={onChange}
         />
       </Section>
 
       <Section title="Risk">
         <Slider
+          param="crashProbability"
           label="Crash probability"
           value={params.crashProbability}
-          min={0}
-          max={0.25}
-          step={0.005}
           display={formatPercent(params.crashProbability, 0)}
           hint="Chance of a market crash each year."
-          onChange={(v) => onChange({ crashProbability: v })}
+          onChange={onChange}
         />
         <Slider
+          param="crashSeverity"
           label="Crash severity"
           value={params.crashSeverity}
-          min={0}
-          max={0.8}
-          step={0.01}
           display={`${Math.round(params.crashSeverity * 100)}%`}
           hint="How much wealth a crash wipes out."
-          onChange={(v) => onChange({ crashSeverity: v })}
+          onChange={onChange}
         />
       </Section>
     </div>

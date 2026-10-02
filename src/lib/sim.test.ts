@@ -4,6 +4,7 @@ import {
   MAX_YEAR,
   buildHistogram,
   deathProbability,
+  effectiveReturnRate,
   laborIncomeFactor,
   percentile,
   simulate,
@@ -13,7 +14,13 @@ import {
   type HistogramBin,
   type WorldParams,
 } from "./sim";
-import { formatMoney, formatMultiplier, formatNumber, formatPercent } from "./format";
+import {
+  formatMoney,
+  formatMultiple,
+  formatMultiplier,
+  formatNumber,
+  formatPercent,
+} from "./format";
 
 const baseParams: WorldParams = { ...DEFAULT_PARAMS, crashProbability: 0 };
 
@@ -334,5 +341,68 @@ describe("formatters", () => {
   test("formatMultiplier switches precision at 10x", () => {
     expect(formatMultiplier(1.25)).toBe("1.3×");
     expect(formatMultiplier(12.34)).toBe("12×");
+  });
+
+  test("formatMoney extends past trillions", () => {
+    expect(formatMoney(1e15)).toBe("$1Q");
+    expect(formatMoney(6.6e15)).toBe("$6.6Q");
+    expect(formatMoney(-2.5e15)).toBe("-$2.5Q");
+  });
+
+  test("formatMultiple abbreviates wealth-to-income ratios", () => {
+    expect(formatMultiple(3.4)).toBe("3.4×");
+    expect(formatMultiple(85.6)).toBe("86×");
+    expect(formatMultiple(12_500)).toBe("12.5K×");
+    expect(formatMultiple(6.68e6)).toBe("6.7M×");
+    expect(formatMultiple(Number.NaN)).toBe("—");
+  });
+});
+
+describe("effectiveReturnRate", () => {
+  test("pays more on larger positive balances", () => {
+    const rate = (wealth: number) => effectiveReturnRate(0.05, 0.5, wealth, 50_000);
+    expect(rate(50_000)).toBeGreaterThan(rate(0));
+    expect(rate(500_000)).toBeGreaterThan(rate(50_000));
+  });
+
+  test("charges more on deeper debts than on the baseline rate", () => {
+    const rate = (wealth: number) => effectiveReturnRate(0.05, 0.5, wealth, 50_000);
+    expect(rate(0)).toBeCloseTo(0.05, 12);
+    // Regression: tanh is negative for negative balances, so the debt side used
+    // to accrue *slower* than the baseline rate — the opposite of the docs.
+    expect(rate(-5_000)).toBeGreaterThan(rate(0));
+    expect(rate(-1_000_000)).toBeGreaterThan(rate(-5_000));
+    // The scaling is bounded by returnRate * (1 + returnScale).
+    expect(rate(-1e12)).toBeLessThanOrEqual(0.05 * 1.5 + 1e-12);
+  });
+});
+
+describe("300-year horizon", () => {
+  test("reports mean income so wealth can be read in years of income", () => {
+    const snapshots = simulate({ ...DEFAULT_PARAMS, productivityGrowth: 0.02 }, 42, 10);
+    expect(snapshots[0].stats.meanIncome).toBeCloseTo(DEFAULT_PARAMS.meanIncome, 6);
+    expect(snapshots[10].stats.meanIncome).toBeCloseTo(
+      DEFAULT_PARAMS.meanIncome * Math.pow(1.02, 10),
+      6,
+    );
+  });
+
+  test("the shape settles long before year 300 while the scale explodes", () => {
+    const snapshots = simulate(DEFAULT_PARAMS, 42);
+    const early = snapshots[100].stats;
+    const late = snapshots[300].stats;
+    expect(Math.abs(early.gini - late.gini)).toBeLessThan(0.02);
+    expect(late.mean / late.meanIncome).toBeGreaterThan(1000 * (early.mean / early.meanIncome));
+  });
+
+  test("inheritance compresses concentration instead of building a dynastic tail", () => {
+    // Measured regression: destroying estates at death restarts every
+    // generation from zero, which concentrates *more* than recycling wealth to
+    // heirs. The docs claimed the opposite.
+    for (const seed of [7, 42]) {
+      const none = simulate({ ...DEFAULT_PARAMS, inheritanceRate: 0 }, seed, 200).at(-1)!;
+      const full = simulate({ ...DEFAULT_PARAMS, inheritanceRate: 1 }, seed, 200).at(-1)!;
+      expect(none.stats.gini, `seed ${seed}`).toBeGreaterThan(full.stats.gini);
+    }
   });
 });

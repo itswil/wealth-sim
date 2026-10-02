@@ -38,6 +38,37 @@ export const DEFAULT_PARAMS: WorldParams = {
   productivityGrowth: 0.01,
 };
 
+export interface ParamRange {
+  min: number;
+  max: number;
+  step: number;
+}
+
+/**
+ * The single source of truth for every parameter's bounds. The control panel
+ * renders from these and the URL parser clamps to them, so a slider can never
+ * disagree with what a shared link accepts.
+ */
+export const PARAM_RANGES: Record<keyof WorldParams, ParamRange> = {
+  populationSize: { min: 50, max: 5000, step: 50 },
+  meanIncome: { min: 20000, max: 200000, step: 1000 },
+  incomeInequality: { min: 0.1, max: 2, step: 0.05 },
+  initialWealth: { min: 0, max: 200000, step: 1000 },
+  initialInequality: { min: 0.1, max: 2.5, step: 0.05 },
+  costOfLiving: { min: 0, max: 50000, step: 500 },
+  returnRate: { min: 0, max: 0.15, step: 0.005 },
+  savingsRate: { min: 0, max: 0.3, step: 0.005 },
+  incomeTaxRate: { min: 0, max: 0.8, step: 0.01 },
+  wealthTaxRate: { min: 0, max: 0.05, step: 0.001 },
+  inheritanceRate: { min: 0, max: 1, step: 0.01 },
+  crashProbability: { min: 0, max: 0.25, step: 0.005 },
+  crashSeverity: { min: 0, max: 0.8, step: 0.01 },
+  maxDebtYears: { min: 0, max: 10, step: 0.5 },
+  returnScale: { min: 0, max: 1, step: 0.05 },
+  incomeShock: { min: 0, max: 0.4, step: 0.01 },
+  productivityGrowth: { min: 0, max: 0.05, step: 0.005 },
+};
+
 export interface InequalityPreset {
   id: string;
   label: string;
@@ -84,11 +115,15 @@ export interface YearStats {
   median: number;
   gini: number;
   top1Avg: number;
-  top10Avg: number;
   bottom50Avg: number;
   top1Share: number;
-  top10Share: number;
   bottom50Share: number;
+  /**
+   * The year's mean income level (it drifts with productivity growth). Wealth
+   * grows far faster than income, so `mean / meanIncome` — net worth in years
+   * of income — is the only stationary way to read the headline numbers.
+   */
+  meanIncome: number;
 }
 
 export interface SimulationSnapshot {
@@ -104,15 +139,7 @@ export function simulate(
   seed: number,
   maxYear: number = MAX_YEAR,
 ): SimulationSnapshot[] {
-  const world: WorldConfig = {
-    populationSize: params.populationSize,
-    incomeInequality: params.incomeInequality,
-    initialWealth: params.initialWealth,
-    initialInequality: params.initialInequality,
-    meanIncome: params.meanIncome,
-    costOfLiving: params.costOfLiving,
-  };
-  const sim = new Simulation(seed, world);
+  const sim = new Simulation(seed, params);
   const snapshots: SimulationSnapshot[] = [sim.snapshot()];
   for (let y = 0; y < maxYear; y++) {
     sim.step(params);
@@ -198,13 +225,20 @@ export function deathProbability(age: number): number {
   );
 }
 
-export interface WorldConfig {
-  populationSize: number;
-  incomeInequality: number;
-  initialWealth: number;
-  initialInequality: number;
-  meanIncome: number;
-  costOfLiving: number;
+/**
+ * The yearly growth rate applied to a balance. Returns scale with the size of
+ * the balance, so large portfolios earn more per dollar and deep debts accrue
+ * faster than shallow ones — the debt half of the domain is deliberately more
+ * expensive than `returnRate`, not cheaper.
+ */
+export function effectiveReturnRate(
+  returnRate: number,
+  returnScale: number,
+  wealth: number,
+  meanIncome: number,
+): number {
+  const ref = Math.max(1, meanIncome);
+  return returnRate * (1 + returnScale * Math.abs(Math.tanh(wealth / ref)));
 }
 
 export class Simulation {
@@ -212,7 +246,6 @@ export class Simulation {
   readonly wealth: Float64Array;
   readonly incomeFactor: Float64Array;
   readonly age: Float64Array;
-  readonly world: WorldConfig;
   year = 0;
   currentStats: YearStats;
 
@@ -228,9 +261,8 @@ export class Simulation {
   private meanIncome: number;
   private costOfLiving: number;
 
-  constructor(seed: number, world: WorldConfig) {
-    this.world = world;
-    this.n = Math.max(2, Math.floor(world.populationSize));
+  constructor(seed: number, params: WorldParams) {
+    this.n = Math.max(2, Math.floor(params.populationSize));
     this.wealth = new Float64Array(this.n);
     this.incomeFactor = new Float64Array(this.n);
     this.age = new Float64Array(this.n);
@@ -238,11 +270,11 @@ export class Simulation {
     this.income = new Float64Array(this.n);
     this.rng = mulberry32(seed);
     this.gauss = makeGaussian(this.rng);
-    this.sigmaI = world.incomeInequality;
+    this.sigmaI = params.incomeInequality;
     this.incomeNorm = Math.exp((this.sigmaI * this.sigmaI) / 2);
-    this.wealthNorm = Math.exp((world.initialInequality * world.initialInequality) / 2);
-    this.meanIncome = world.meanIncome;
-    this.costOfLiving = world.costOfLiving;
+    this.wealthNorm = Math.exp((params.initialInequality * params.initialInequality) / 2);
+    this.meanIncome = params.meanIncome;
+    this.costOfLiving = params.costOfLiving;
     const rho = this.rho;
     const rho2 = Math.sqrt(1 - rho * rho);
     for (let i = 0; i < this.n; i++) {
@@ -250,7 +282,7 @@ export class Simulation {
       const zW = rho * zI + rho2 * this.gauss();
       this.incomeFactor[i] = Math.exp(this.sigmaI * zI) / this.incomeNorm;
       this.wealth[i] =
-        (world.initialWealth * Math.exp(world.initialInequality * zW)) / this.wealthNorm;
+        (params.initialWealth * Math.exp(params.initialInequality * zW)) / this.wealthNorm;
       this.age[i] = DEMOGRAPHICS.entryAgeMin + this.rng() * 52;
     }
     this.currentStats = this.computeStats();
@@ -286,8 +318,12 @@ export class Simulation {
 
     let wealthTaxPool = 0;
     for (let i = 0; i < n; i++) {
-      const ref = Math.max(1, this.meanIncome);
-      const effReturn = p.returnRate * (1 + p.returnScale * Math.tanh(wealth[i] / ref));
+      const effReturn = effectiveReturnRate(
+        p.returnRate,
+        p.returnScale,
+        wealth[i],
+        this.meanIncome,
+      );
       wealth[i] *= 1 + effReturn;
 
       if (p.wealthTaxRate > 0 && wealth[i] > 0) {
@@ -379,14 +415,11 @@ export class Simulation {
     }
 
     const top1 = top1Count(n);
-    const top10Count = Math.max(1, Math.round(0.1 * n));
     const bottom50Count = Math.max(1, Math.floor(0.5 * n));
     let top1Sum = 0;
-    let top10Sum = 0;
     let bottom50Sum = 0;
     for (let i = 0; i < n; i++) {
       if (i >= n - top1) top1Sum += s[i];
-      if (i >= n - top10Count) top10Sum += s[i];
       if (i < bottom50Count) bottom50Sum += s[i];
     }
 
@@ -397,11 +430,10 @@ export class Simulation {
       median,
       gini,
       top1Avg: top1Sum / top1,
-      top10Avg: top10Sum / top10Count,
       bottom50Avg: bottom50Sum / bottom50Count,
       top1Share: total !== 0 ? top1Sum / total : 0,
-      top10Share: total !== 0 ? top10Sum / total : 0,
       bottom50Share: total !== 0 ? bottom50Sum / total : 0,
+      meanIncome: this.meanIncome,
     };
   }
 }

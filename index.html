@@ -5,6 +5,26 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wealth Simulator</title>
+    <meta
+      name="description"
+      content="Interactive agent-based simulator showing how wealth accumulates and concentrates across a population over 300 years."
+    />
+    <script>
+      // Applied before first paint so a dark-mode user never sees a white flash.
+      // Must mirror the rule in src/hooks/use-theme.ts (key "theme", explicit
+      // choice beats the OS preference).
+      (() => {
+        try {
+          const stored = localStorage.getItem("theme");
+          const dark =
+            stored === "dark" ||
+            (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch {
+          // Private-mode storage errors must not block rendering.
+        }
+      })();
+    </script>
   </head>
 
   <body>

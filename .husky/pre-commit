@@ -1,2 +1,3 @@
 pnpm fmt
 pnpm lint:fix
+pnpm exec tsc -b
