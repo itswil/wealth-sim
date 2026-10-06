@@ -20,13 +20,29 @@ export interface YScale {
   transform: (v: number) => number;
 }
 
-export function makeYScale(minV: number, maxV: number, logScale: boolean): YScale {
+export function makeYScale(
+  minV: number,
+  maxV: number,
+  logScale: boolean,
+  minPositive?: number,
+): YScale {
   // Log10 is undefined at or below zero, so a population that is entirely in
   // debt (or entirely at zero) has no log axis to draw: every value would clamp
   // to the floor and flatten the series into a single line. Fall back to linear
   // and report it, so callers do not label the axis as logarithmic anyway.
   const log = logScale && maxV > 0;
-  const floor = Math.max(maxV * 1e-4, 1);
+  // Sit the floor on the smallest positive value in the data so every year of
+  // the run stays in view — a floor expressed as a fraction of the peak hides
+  // the early decades under a single flat line. The `maxV * 1e-12` term caps
+  // the window at twelve decades, so a stray near-zero balance cannot stretch
+  // the axis until the real range is a few pixels tall.
+  const floor = log
+    ? Math.max(
+        Math.min(minPositive && minPositive > 0 ? minPositive : maxV * 1e-12, maxV),
+        maxV * 1e-12,
+        1,
+      )
+    : 0;
   const lo = log ? Math.log10(floor) : minV;
   const hi = log ? Math.log10(Math.max(maxV, floor)) : maxV;
   return {

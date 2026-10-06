@@ -1,7 +1,7 @@
 import { memo, useId, useMemo, useRef, useState } from "react";
 import { buildHistogram, percentile, top1Bins } from "../lib/sim";
 import { formatMoney } from "../lib/format";
-import { PALETTE } from "../lib/palette";
+import { PALETTE, labelColor } from "../lib/palette";
 import { CHART_LAYOUT } from "../lib/chart";
 import { useMeasuredWidth } from "../hooks/use-measured-width";
 
@@ -22,13 +22,13 @@ export const WealthDistribution = memo(function WealthDistribution({
   const highlightColor = dark ? "#f8fafc" : "#0f172a";
   const haloColor = dark ? "#0f172a" : "#ffffff";
   const minorGridColor = dark ? "#263449" : "#f1f5f9";
-  const {
-    height: H,
-    paddingLeft: PL,
-    paddingRight: PR,
-    paddingTop: PT,
-    paddingBottom: PB,
-  } = CHART_LAYOUT;
+  // Slate-400 only clears AA against the dark card; on white it lands at 2.6:1.
+  const tickColor = dark ? "#94a3b8" : "#64748b";
+  const { height: H, paddingLeft: PL, paddingRight: PR, paddingTop: PT } = CHART_LAYOUT;
+  // This chart prints "N people" / "N in debt" on the baseline the x-axis
+  // ticks use, so it needs more room underneath than the time-series chart:
+  // without it the last tick label and the count overlapped by ~28px.
+  const PB = CHART_LAYOUT.paddingBottom + 20;
   const innerW = W - PL - PR;
   const innerH = H - PT - PB;
 
@@ -36,7 +36,10 @@ export const WealthDistribution = memo(function WealthDistribution({
   const histRef = useRef<SVGSVGElement | null>(null);
   const summaryId = useId();
 
-  const { bins, negatives } = useMemo(() => buildHistogram(sorted), [sorted]);
+  // Bin count follows the measured width: 120 bins over a 300px mobile chart
+  // is 2.5px bars, too thin to read or to hit.
+  const binCount = Math.max(30, Math.min(120, Math.floor(innerW / 6)));
+  const { bins, negatives } = useMemo(() => buildHistogram(sorted, binCount), [sorted, binCount]);
   const p99 = useMemo(() => percentile(sorted, 0.99), [sorted]);
   const n = sorted.length;
   const topFlags = useMemo(() => top1Bins(bins, n), [bins, n]);
@@ -44,7 +47,7 @@ export const WealthDistribution = memo(function WealthDistribution({
     return (
       <div
         ref={containerRef}
-        className="flex h-full min-h-[320px] items-center justify-center text-sm text-slate-400"
+        className="flex h-full min-h-[320px] items-center justify-center text-sm text-slate-500 dark:text-slate-400"
       >
         Everyone is in debt — no positive wealth to chart.
       </div>
@@ -111,7 +114,7 @@ export const WealthDistribution = memo(function WealthDistribution({
           return (
             <g key={v}>
               <line x1={tx} y1={PT} x2={tx} y2={H - PB} stroke={minorGridColor} strokeWidth={1} />
-              <text x={tx} y={H - PB + 16} textAnchor="middle" fontSize={11} fill="#94a3b8">
+              <text x={tx} y={H - PB + 16} textAnchor="middle" fontSize={11} fill={tickColor}>
                 {formatMoney(v)}
               </text>
             </g>
@@ -187,7 +190,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             y={PT + 12}
             textAnchor="end"
             fontSize={10}
-            fill={PALETTE.burntOrange}
+            fill={labelColor("vermillion", dark)}
             fontWeight={600}
             paintOrder="stroke"
             stroke={haloColor}
@@ -225,7 +228,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             y={PT + 12}
             textAnchor="end"
             fontSize={10}
-            fill={PALETTE.blue}
+            fill={labelColor("blue", dark)}
             fontWeight={600}
             paintOrder="stroke"
             stroke={haloColor}
@@ -241,7 +244,7 @@ export const WealthDistribution = memo(function WealthDistribution({
             y={PT + 26}
             textAnchor="end"
             fontSize={10}
-            fill={PALETTE.slate}
+            fill={labelColor("slate", dark)}
             fontWeight={600}
             paintOrder="stroke"
             stroke={haloColor}
@@ -269,7 +272,7 @@ export const WealthDistribution = memo(function WealthDistribution({
           x={PL + innerW}
           y={H - 8}
           fontSize={11}
-          fill="#94a3b8"
+          fill={tickColor}
           textAnchor="end"
           paintOrder="stroke"
           stroke={haloColor}

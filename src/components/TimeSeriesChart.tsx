@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { YearStats } from "../lib/sim";
 import { formatMoney } from "../lib/format";
-import { PALETTE } from "../lib/palette";
+import { PALETTE, LABEL_COLOR } from "../lib/palette";
 import { CHART_LAYOUT, makeX, makeY, makeYScale, niceTicks } from "../lib/chart";
 import { useMeasuredWidth } from "../hooks/use-measured-width";
 
@@ -23,14 +23,32 @@ export interface TimeSeriesProps {
 }
 
 export const SERIES = [
-  { key: "top1Avg" as const, label: "Top 1% avg", color: PALETTE.vermillion },
-  { key: "mean" as const, label: "Mean", color: PALETTE.blue, dash: "7 4" },
-  { key: "median" as const, label: "Median", color: PALETTE.slate, dash: "2 4" },
+  {
+    key: "top1Avg" as const,
+    label: "Top 1% avg",
+    color: PALETTE.vermillion,
+    text: LABEL_COLOR.vermillion,
+  },
+  {
+    key: "mean" as const,
+    label: "Mean",
+    color: PALETTE.blue,
+    dash: "7 4",
+    text: LABEL_COLOR.blue,
+  },
+  {
+    key: "median" as const,
+    label: "Median",
+    color: PALETTE.slate,
+    dash: "2 4",
+    text: LABEL_COLOR.slate,
+  },
   {
     key: "bottom50Avg" as const,
     label: "Bottom 50% avg",
     color: PALETTE.green,
     dash: "10 3 2 3",
+    text: LABEL_COLOR.green,
   },
 ];
 
@@ -59,7 +77,8 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   const narrow = W < 520;
   const gridColor = dark ? "#334155" : "#e2e8f0";
   const minorGridColor = dark ? "#263449" : "#f1f5f9";
-  const tickColor = "#94a3b8";
+  // Slate-400 only clears AA against the dark card; on white it lands at 2.6:1.
+  const tickColor = dark ? "#94a3b8" : "#64748b";
   const activeLineColor = dark ? "#e2e8f0" : "#0f172a";
   const markerFill = dark ? "#0f172a" : "#ffffff";
   const badgeFill = dark ? "#e2e8f0" : "#0f172a";
@@ -80,14 +99,22 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
     }
     let minV = Infinity;
     let maxV = -Infinity;
+    let minPositive = Infinity;
     for (const s of stats) {
       for (const { key } of series) {
-        minV = Math.min(minV, s[key]);
-        maxV = Math.max(maxV, s[key]);
+        const v = s[key];
+        minV = Math.min(minV, v);
+        maxV = Math.max(maxV, v);
+        if (v > 0 && v < minPositive) minPositive = v;
       }
     }
 
-    const yScale = makeYScale(minV, maxV, logScale);
+    const yScale = makeYScale(
+      minV,
+      maxV,
+      logScale,
+      Number.isFinite(minPositive) ? minPositive : undefined,
+    );
     const y = makeY(yScale, PT, innerH);
 
     const len = stats.length;
@@ -323,23 +350,41 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
         />
         {(() => {
           const lastRec = stats[stats.length - 1];
+          const minBaseline = PT + 10;
+          const maxBaseline = PT + innerH - 4;
+          const gap = 13;
           const entries = series
-            .map((s) => ({ key: s.key, label: s.label, color: s.color, y: y(lastRec[s.key]) }))
-            .sort((a, b) => a.y - b.y);
+            .map((s) => ({
+              key: s.key,
+              label: s.label,
+              // Label text uses the AA-safe ramp, not the stroke colour: the
+              // lines only need 3:1 as graphics, the labels need 4.5:1 as text.
+              fill: s.text[dark ? "dark" : "light"],
+              baseline: y(lastRec[s.key]) + 3.5,
+            }))
+            .sort((a, b) => a.baseline - b.baseline);
+          // Spread overlapping labels apart in reading order...
           let prev = -Infinity;
           for (const entry of entries) {
-            entry.y = Math.max(entry.y, prev + 13);
-            prev = entry.y;
+            entry.baseline = Math.max(entry.baseline, prev + gap);
+            prev = entry.baseline;
           }
+          // ...then slide the whole stack back inside the plot. Clamping each
+          // label individually pinned the tail of the stack to one shared edge
+          // value, which is what made the last two labels collide.
+          const overflow = entries[entries.length - 1].baseline - maxBaseline;
+          if (overflow > 0) for (const entry of entries) entry.baseline -= overflow;
+          const underflow = minBaseline - entries[0].baseline;
+          if (underflow > 0) for (const entry of entries) entry.baseline += underflow;
           return entries.map((entry) => (
             <text
               key={entry.key}
               x={W - PR - 2}
-              y={Math.min(PT + innerH - 4, Math.max(PT + 10, entry.y + 3.5))}
+              y={entry.baseline}
               textAnchor="end"
               fontSize={10}
               fontWeight={600}
-              fill={entry.color}
+              fill={entry.fill}
               paintOrder="stroke"
               stroke={markerFill}
               strokeWidth={3}
