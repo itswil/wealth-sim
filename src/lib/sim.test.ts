@@ -92,12 +92,17 @@ describe("simulate", () => {
     expect(a).toEqual(b);
   });
 
-  test("each snapshot carries the same distribution pre-sorted", () => {
+  test("each snapshot carries its distribution pre-sorted", () => {
     // The stats pass has to sort anyway, so the snapshot ships that order and
-    // the UI never re-sorts. Consumers rely on it for the histogram.
+    // the UI never re-sorts. Consumers rely on it for the histogram and the
+    // percentile markers, both of which assume ascending order.
     for (const snap of simulate(baseParams, 42, 20)) {
-      expect(snap.sorted).toHaveLength(snap.wealth.length);
-      expect([...snap.sorted]).toEqual([...snap.wealth].sort((a, b) => a - b));
+      expect(snap.sorted).toHaveLength(snap.population);
+      for (let i = 1; i < snap.sorted.length; i++) {
+        expect(snap.sorted[i]).toBeGreaterThanOrEqual(snap.sorted[i - 1]);
+      }
+      const total = snap.sorted.reduce((sum, w) => sum + w, 0);
+      expect(total).toBeCloseTo(snap.stats.total, 6);
     }
   });
 
@@ -137,9 +142,7 @@ describe("simulate", () => {
     };
     const snapshots = simulate(params, 5, 80);
     for (const snap of snapshots) {
-      for (let i = 0; i < snap.wealth.length; i++) {
-        expect(snap.wealth[i]).toBeGreaterThanOrEqual(-1e-9);
-      }
+      expect(snap.sorted[0]).toBeGreaterThanOrEqual(-1e-9);
     }
   });
 
@@ -151,7 +154,7 @@ describe("simulate", () => {
       const snapshots = simulate(params, 7, 120).slice(30);
       let floor = Infinity;
       for (const snap of snapshots) {
-        for (const w of snap.wealth) floor = Math.min(floor, w);
+        floor = Math.min(floor, snap.sorted[0]);
       }
       return floor;
     };
@@ -260,7 +263,7 @@ describe("gini", () => {
       meanIncome: 100_000,
       initialWealth: 10_000,
     };
-    const sorted = simulate(world, 42, 60).at(-1)!.wealth.slice().sort();
+    const sorted = simulate(world, 42, 60).at(-1)!.sorted;
     expect(sorted[0]).toBeGreaterThanOrEqual(0);
 
     let total = 0;

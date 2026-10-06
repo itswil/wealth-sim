@@ -186,3 +186,33 @@ test("renders an empty state instead of crashing without any years", async () =>
   );
   await expect.element(getByText(/no years to chart/i)).toBeVisible();
 });
+
+function YearsHarness() {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div>
+      <button type="button" onClick={() => setLoaded(true)}>
+        load years
+      </button>
+      <TimeSeriesChart
+        stats={loaded ? stats : []}
+        logScale={false}
+        selectedYear={0}
+        hoverYear={null}
+        onHoverYear={noop}
+        onSelectYear={noop}
+      />
+    </div>
+  );
+}
+
+test("recovers when years arrive after an empty render", async () => {
+  // Regression: `useEffect` was declared after the empty-state early return,
+  // so the first render skipped a hook the next one called and React threw
+  // "Rendered more hooks than during the previous render."
+  const screen = await render(<YearsHarness />);
+  await expect.element(screen.getByText(/no years to chart/i)).toBeVisible();
+
+  await screen.getByRole("button", { name: "load years" }).click();
+  await expect.element(screen.getByRole("slider", { name: /arrow keys/i })).toBeVisible();
+});

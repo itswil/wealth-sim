@@ -120,6 +120,16 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
     return { paths, yTicks, xTicks, minYear, maxYear, yScale };
   }, [stats, logScale, narrow, W]);
 
+  const activeYear = Math.max(minYear, Math.min(maxYear, hoverYear ?? selectedYear));
+
+  // Declared before the empty-state early return below: every render must call
+  // the same hooks in the same order, and this effect is unconditional.
+  useEffect(() => {
+    if (keyboardYearRef.current === activeYear) {
+      keyboardYearRef.current = null;
+    }
+  }, [activeYear]);
+
   if (stats.length === 0) {
     return (
       <div
@@ -134,7 +144,6 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   const y = makeY(yScale, PT, innerH);
   const x = makeX(minYear, maxYear, PL, innerW);
 
-  const activeYear = Math.max(minYear, Math.min(maxYear, hoverYear ?? selectedYear));
   const activeX = x(activeYear);
 
   const yearAtClientX = (clientX: number): number => {
@@ -200,12 +209,6 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
     keyboardYearRef.current = Math.max(minYear, Math.min(maxYear, next));
     onSelectYear(keyboardYearRef.current);
   };
-
-  useEffect(() => {
-    if (keyboardYearRef.current === activeYear) {
-      keyboardYearRef.current = null;
-    }
-  }, [activeYear]);
 
   const clearKeyboardYear = () => {
     onHoverYear(null);

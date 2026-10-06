@@ -244,7 +244,7 @@ function App() {
                     Population
                   </span>
                   <span className="text-xl font-extrabold text-slate-900 tabular-nums dark:text-slate-50">
-                    {formatNumber(snap.wealth.length)}
+                    {formatNumber(snap.population)}
                   </span>
                 </div>
               </div>

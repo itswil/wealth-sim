@@ -135,11 +135,17 @@ export interface YearStats {
 export interface SimulationSnapshot {
   year: number;
   stats: YearStats;
-  wealth: Float64Array;
   /**
-   * `wealth` in ascending order. Carried from the stats pass, which has to sort
-   * anyway, so consumers never pay for a second sort. Only valid immediately
-   * after `computeStats`, which every `step` performs.
+   * The run's population. Stored as a scalar rather than alongside the
+   * per-person balances: `simulate` keeps one snapshot per year, so a full
+   * un-sorted copy would double the run's memory for a number the stats
+   * already imply.
+   */
+  population: number;
+  /**
+   * Every balance in ascending order. Carried from the stats pass, which has
+   * to sort anyway, so consumers never pay for a second sort. Only valid
+   * immediately after `computeStats`, which every `step` performs.
    */
   sorted: Float64Array;
 }
@@ -304,7 +310,7 @@ export class Simulation {
     return {
       year: this.year,
       stats: this.currentStats,
-      wealth: this.wealth.slice(),
+      population: this.n,
       sorted: this.sorted.slice(),
     };
   }
