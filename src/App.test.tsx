@@ -81,3 +81,21 @@ test("writes the world into the URL once the year settles", async () => {
   expect(params().get("seed")).toBe("42");
   expect(params().get("populationSize")).toBe("1000");
 });
+
+test("copy link puts the current world URL on the clipboard", async () => {
+  window.history.replaceState(null, "", "/");
+  const written: string[] = [];
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async (text: string) => void written.push(text) },
+  });
+
+  const { getByRole } = await render(<App />);
+  await getByRole("button", { name: "Copy link" }).click();
+
+  await expect.poll(() => written.length, { timeout: 5000 }).toBe(1);
+  const copied = new URL(written[0]);
+  expect(copied.searchParams.get("seed")).toBe("42");
+  expect(copied.searchParams.get("populationSize")).toBe("1000");
+  await expect.element(getByRole("button", { name: "Copied!" })).toBeVisible();
+});
