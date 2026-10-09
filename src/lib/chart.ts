@@ -59,6 +59,32 @@ export const makeY =
   (v: number) =>
     pt + (1 - (transform(v) - lo) / span) * innerH;
 
+/** Vertical space reserved below a log plot for values at or below zero. */
+export const DEBT_STRIP_HEIGHT = 16;
+
+export interface PlotY {
+  /** Height of the linear debt strip; 0 when negatives render natively. */
+  stripH: number;
+  /** Top edge of the strip — the $0 boundary against the log region. */
+  stripTop: number;
+  y: (v: number) => number;
+}
+
+/**
+ * A log axis cannot represent debt: clamping negatives onto the floor would
+ * draw "net in debt" as "worth almost nothing". When the axis is
+ * logarithmic and any value dips below zero, reserve a short linear strip
+ * beneath the plot and land those values there; on a linear axis they
+ * already render natively, so no strip is needed.
+ */
+export const makePlotY = (yScale: YScale, minV: number, pt: number, innerH: number): PlotY => {
+  const stripH = yScale.log && minV < 0 ? DEBT_STRIP_HEIGHT : 0;
+  const stripTop = pt + innerH - stripH;
+  const yLog = makeY(yScale, pt, innerH - stripH);
+  const y = (v: number) => (stripH > 0 && v <= 0 ? stripTop + stripH * (v / minV) : yLog(v));
+  return { stripH, stripTop, y };
+};
+
 export const makeX =
   (minYear: number, maxYear: number, pl: number, innerW: number) => (year: number) =>
     pl + ((year - minYear) / Math.max(1, maxYear - minYear)) * innerW;

@@ -11,7 +11,7 @@ By default returns are mildly **scale-dependent**, so larger portfolios earn mor
 - **Fixed 300-year timeline** — the whole run is precomputed once; any control change re-runs it (~30ms at default population, ~170ms at 5,000).
 - **Inspect any year** — hover or drag on the chart (mouse or touch), scrub the slider, use arrow keys (Shift for 10-year jumps), tap a jump preset, or press play to animate.
 - **Two live visualisations**:
-  - _Wealth over time_ — top 1% avg, mean, median, and bottom 50% avg per year, with direct line labels, a value readout for the active year, log/linear toggle, and playback progress bar.
+  - _Wealth over time_ — top 1% avg, mean, median, and bottom 50% avg per year, with direct line labels, a value readout for the active year, log/linear toggle, and playback progress bar. On the log axis, a series that goes net-indebted drops into a labelled strip below the plot instead of being pinned to the axis floor.
   - _Wealth distribution_ — log-bucket histogram with the top 1% highlighted; hover or tap any bin for its range and count.
 - **Headline stats** — total/mean/median wealth, wealth-to-income ratio, Gini, top 1% / bottom 50% shares.
 - **Shareable URLs** — every parameter, seed, and year is serialized into the query string (debounced so playback doesn't flood the history API). The controls panel shows the current seed, and its **Copy link** button puts a URL for the exact world on the clipboard.

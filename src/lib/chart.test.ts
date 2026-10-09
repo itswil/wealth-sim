@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { CHART_LAYOUT, makeX, makeY, makeYScale, niceTicks } from "./chart";
+import {
+  CHART_LAYOUT,
+  DEBT_STRIP_HEIGHT,
+  makePlotY,
+  makeX,
+  makeY,
+  makeYScale,
+  niceTicks,
+} from "./chart";
 
 describe("niceTicks", () => {
   test("returns round steps covering the range", () => {
@@ -88,6 +96,35 @@ describe("makeYScale", () => {
     const scale = makeYScale(-500_000, 1000, true);
     expect(scale.log).toBe(true);
     expect(scale.transform(-500_000)).toBe(scale.transform(1));
+  });
+});
+
+describe("makePlotY", () => {
+  test("gives debt a linear strip under a log axis", () => {
+    const scale = makeYScale(-500_000, 1000, true);
+    expect(scale.log).toBe(true);
+    const { stripH, stripTop, y } = makePlotY(scale, -500_000, 14, 278);
+    expect(stripH).toBe(DEBT_STRIP_HEIGHT);
+    // $0 is the boundary between strip and log region; the deepest debt
+    // sits at the very bottom, spread linearly between.
+    expect(y(0)).toBe(stripTop);
+    expect(y(-500_000)).toBe(stripTop + stripH);
+    expect(y(-250_000)).toBeCloseTo(stripTop + stripH / 2, 10);
+    // Positive values stay on the log region above the strip.
+    expect(y(1000)).toBeLessThan(stripTop);
+  });
+
+  test("adds no strip on a linear axis, where debt renders natively", () => {
+    const scale = makeYScale(-500_000, 1000, false);
+    const { stripH, y } = makePlotY(scale, -500_000, 14, 278);
+    expect(stripH).toBe(0);
+    expect(y(-500_000)).toBe(14 + 278);
+    expect(y(1000)).toBe(14);
+  });
+
+  test("adds no strip when nothing dips below zero", () => {
+    const scale = makeYScale(5, 1000, true);
+    expect(makePlotY(scale, 5, 14, 278).stripH).toBe(0);
   });
 });
 

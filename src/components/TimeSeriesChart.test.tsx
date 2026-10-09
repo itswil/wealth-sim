@@ -31,6 +31,12 @@ const debtStats: YearStats[] = Array.from({ length: 301 }, (_, year) => ({
   bottom50Avg: -300_000,
 }));
 
+/** Everything stays positive except the bottom half, which carries debt. */
+const mixedDebtStats: YearStats[] = Array.from({ length: 301 }, (_, year) => ({
+  ...makeStats(year),
+  bottom50Avg: -300_000,
+}));
+
 const svgTexts = () =>
   Array.from(document.querySelectorAll("text")).map((element) => element.textContent);
 
@@ -91,6 +97,53 @@ test("log scale falls back to real ticks for an all-negative population", async 
   expect(texts.some((t) => t?.startsWith("-$"))).toBe(true);
   expect(texts).not.toContain("$1K");
   expect(texts).not.toContain("$1");
+});
+
+test("says when the log axis degrades to linear", async () => {
+  const { getByText } = await render(
+    <TimeSeriesChart
+      stats={debtStats}
+      logScale
+      selectedYear={0}
+      hoverYear={null}
+      onHoverYear={noop}
+      onSelectYear={noop}
+    />,
+  );
+  await expect.element(getByText(/showing a linear axis instead/)).toBeVisible();
+});
+
+test("log scale reserves a labelled strip for a series in debt", async () => {
+  const { getByText } = await render(
+    <TimeSeriesChart
+      stats={mixedDebtStats}
+      logScale
+      selectedYear={0}
+      hoverYear={null}
+      onHoverYear={noop}
+      onSelectYear={noop}
+    />,
+  );
+  // Debt lands in its own strip instead of being pinned to the log floor...
+  await expect.element(getByText("in debt")).toBeVisible();
+  // ...while the axis above it stays logarithmic and un-degraded.
+  expect(svgTexts()).toContain("$1K");
+  expect(document.body.textContent).not.toContain("showing a linear axis");
+});
+
+test("linear scale draws debt natively, without a strip", async () => {
+  await render(
+    <TimeSeriesChart
+      stats={mixedDebtStats}
+      logScale={false}
+      selectedYear={0}
+      hoverYear={null}
+      onHoverYear={noop}
+      onSelectYear={noop}
+    />,
+  );
+  expect(svgTexts()).not.toContain("in debt");
+  expect(document.body.textContent).not.toContain("showing a linear axis");
 });
 
 test("linear scale uses round currency ticks", async () => {

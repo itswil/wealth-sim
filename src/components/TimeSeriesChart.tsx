@@ -9,7 +9,7 @@ import {
 import type { YearStats } from "../lib/sim";
 import { formatMoney } from "../lib/format";
 import { PALETTE, LABEL_COLOR } from "../lib/palette";
-import { CHART_LAYOUT, makeX, makeY, makeYScale, niceTicks } from "../lib/chart";
+import { CHART_LAYOUT, makePlotY, makeX, makeYScale, niceTicks } from "../lib/chart";
 import { useMeasuredWidth } from "../hooks/use-measured-width";
 
 export interface TimeSeriesProps {
@@ -86,66 +86,77 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
 
   const series = SERIES;
 
-  const { paths, yTicks, xTicks, minYear, maxYear, yScale } = useMemo(() => {
-    if (stats.length === 0) {
-      return {
-        paths: [] as string[],
-        yTicks: [] as number[],
-        xTicks: [] as number[],
-        minYear: 0,
-        maxYear: 0,
-        yScale: makeYScale(0, 1, logScale),
-      };
-    }
-    let minV = Infinity;
-    let maxV = -Infinity;
-    let minPositive = Infinity;
-    for (const s of stats) {
-      for (const { key } of series) {
-        const v = s[key];
-        minV = Math.min(minV, v);
-        maxV = Math.max(maxV, v);
-        if (v > 0 && v < minPositive) minPositive = v;
+  const { paths, yTicks, xTicks, minYear, maxYear, yScale, stripH, stripTop, x, y } =
+    useMemo(() => {
+      if (stats.length === 0) {
+        // The component early-returns the empty state before touching x/y,
+        // but the return shape stays uniform so the union destructures.
+        const stubX: (year: number) => number = () => PL;
+        const stubY: (v: number) => number = () => PT;
+        return {
+          paths: [] as string[],
+          yTicks: [] as number[],
+          xTicks: [] as number[],
+          minYear: 0,
+          maxYear: 0,
+          yScale: makeYScale(0, 1, logScale),
+          stripH: 0,
+          stripTop: 0,
+          x: stubX,
+          y: stubY,
+        };
       }
-    }
+      let minV = Infinity;
+      let maxV = -Infinity;
+      let minPositive = Infinity;
+      for (const s of stats) {
+        for (const { key } of series) {
+          const v = s[key];
+          minV = Math.min(minV, v);
+          maxV = Math.max(maxV, v);
+          if (v > 0 && v < minPositive) minPositive = v;
+        }
+      }
 
-    const yScale = makeYScale(
-      minV,
-      maxV,
-      logScale,
-      Number.isFinite(minPositive) ? minPositive : undefined,
-    );
-    const y = makeY(yScale, PT, innerH);
+      const yScale = makeYScale(
+        minV,
+        maxV,
+        logScale,
+        Number.isFinite(minPositive) ? minPositive : undefined,
+      );
+      // Debt gets a linear strip under the log plot instead of being pinned
+      // to the floor, where "net in debt" would read as "worth almost nothing".
+      const { stripH, stripTop, y } = makePlotY(yScale, minV, PT, innerH);
 
-    const len = stats.length;
-    const minYear = stats[0].year;
-    const maxYear = stats[len - 1].year;
-    const x = makeX(minYear, maxYear, PL, innerW);
+      const len = stats.length;
+      const minYear = stats[0].year;
+      const maxYear = stats[len - 1].year;
+      const x = makeX(minYear, maxYear, PL, innerW);
 
-    const paths = series.map(({ key }) => {
-      const pts = stats.map((s) => `${x(s.year).toFixed(1)},${y(s[key]).toFixed(1)}`);
-      return `M ${pts.join(" L ")}`;
-    });
+      const paths = series.map(({ key }) => {
+        const pts = stats.map((s) => `${x(s.year).toFixed(1)},${y(s[key]).toFixed(1)}`);
+        return `M ${pts.join(" L ")}`;
+      });
 
-    const lo = yScale.lo;
-    const hi = yScale.hi;
-    const yTicks = yScale.log
-      ? (() => {
-          const ticks: number[] = [];
-          const loPow = Math.ceil(lo);
-          const hiPow = Math.floor(hi);
-          for (let p = loPow; p <= hiPow; p++) {
-            ticks.push(Math.pow(10, p));
-          }
-          if (ticks.length === 0) ticks.push(Math.pow(10, Math.round((lo + hi) / 2)));
-          return ticks;
-        })()
-      : niceTicks(minV, maxV, narrow ? 4 : 5);
+      const lo = yScale.lo;
+      const hi = yScale.hi;
+      const yTicks = yScale.log
+        ? (() => {
+            const ticks: number[] = [];
+            const loPow = Math.ceil(lo);
+            const hiPow = Math.floor(hi);
+            for (let p = loPow; p <= hiPow; p++) {
+              ticks.push(Math.pow(10, p));
+            }
+            if (ticks.length === 0) ticks.push(Math.pow(10, Math.round((lo + hi) / 2)));
+            return ticks;
+          })()
+        : niceTicks(minV, maxV, narrow ? 4 : 5);
 
-    const xTicks = niceTicks(minYear, maxYear, narrow ? 4 : 6);
+      const xTicks = niceTicks(minYear, maxYear, narrow ? 4 : 6);
 
-    return { paths, yTicks, xTicks, minYear, maxYear, yScale };
-  }, [stats, logScale, narrow, W]);
+      return { paths, yTicks, xTicks, minYear, maxYear, yScale, stripH, stripTop, x, y };
+    }, [stats, logScale, narrow, W]);
 
   const activeYear = Math.max(minYear, Math.min(maxYear, hoverYear ?? selectedYear));
 
@@ -167,9 +178,6 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
       </div>
     );
   }
-
-  const y = makeY(yScale, PT, innerH);
-  const x = makeX(minYear, maxYear, PL, innerW);
 
   const activeX = x(activeYear);
 
@@ -249,6 +257,12 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
 
   return (
     <div ref={containerRef} className="w-full">
+      {/* The toggle still reads "Log", so the degraded axis must say so. */}
+      {logScale && !yScale.log ? (
+        <p className="mb-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+          Log scale needs positive values — showing a linear axis instead.
+        </p>
+      ) : null}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
@@ -268,6 +282,27 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
         onKeyDown={handleKeyDown}
         onBlur={clearKeyboardYear}
       >
+        {stripH > 0 ? (
+          // A linear strip below the log region: values at or below $0 land
+          // here instead of being pinned to the log floor.
+          <g>
+            <rect
+              x={PL}
+              y={stripTop}
+              width={innerW}
+              height={stripH}
+              fill={dark ? "#4c0519" : "#fff1f2"}
+            />
+            <line
+              x1={PL}
+              y1={stripTop}
+              x2={W - PR}
+              y2={stripTop}
+              stroke={dark ? "#9f1239" : "#fecdd3"}
+              strokeWidth={1}
+            />
+          </g>
+        ) : null}
         {yTicks.map((v) => {
           const ty = y(v);
           return (
@@ -403,6 +438,21 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
           rx={2}
           fill={PALETTE.sky}
         />
+        {stripH > 0 ? (
+          <text
+            x={PL + 4}
+            y={stripTop + stripH / 2 + 3.5}
+            fontSize={10}
+            fontWeight={600}
+            fill={dark ? "#fda4af" : "#be123c"}
+            paintOrder="stroke"
+            stroke={markerFill}
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+          >
+            in debt
+          </text>
+        ) : null}
       </svg>
     </div>
   );
