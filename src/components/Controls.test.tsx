@@ -28,10 +28,12 @@ const renderControls = async (props: Partial<ControlsProps> = {}) =>
     <Controls
       params={DEFAULT_PARAMS}
       presetId="moderate"
+      seed={42}
       onChange={noop}
       onPreset={noop}
       onNewWorld={noop}
       onReset={noop}
+      onCopyLink={async () => true}
       {...props}
     />,
   );
@@ -134,5 +136,36 @@ test("every slider takes its bounds from PARAM_RANGES", async () => {
     for (const slider of sliders) {
       expect(canonical.has(`${slider.min}/${slider.max}/${slider.step}`)).toBe(true);
     }
+  });
+});
+
+test("sliders announce the formatted value, not the raw number", async () => {
+  await withViewport(true, async () => {
+    const { getByRole } = await renderControls();
+    const returns = getByRole("slider", { name: /Investment return/ });
+    expect(returns.element().getAttribute("aria-valuetext")).toBe("5.0% / yr");
+  });
+});
+
+test("shows the current seed", async () => {
+  await withViewport(true, async () => {
+    const { getByText } = await renderControls({ seed: 987 });
+    await expect.element(getByText("Seed 987")).toBeVisible();
+  });
+});
+
+test("copy link reports a successful copy", async () => {
+  await withViewport(true, async () => {
+    const { getByRole } = await renderControls({ onCopyLink: async () => true });
+    await getByRole("button", { name: "Copy link" }).click();
+    await expect.element(getByRole("button", { name: "Copied!" })).toBeVisible();
+  });
+});
+
+test("copy link reports a failed copy", async () => {
+  await withViewport(true, async () => {
+    const { getByRole } = await renderControls({ onCopyLink: async () => false });
+    await getByRole("button", { name: "Copy link" }).click();
+    await expect.element(getByRole("button", { name: "Copy failed" })).toBeVisible();
   });
 });

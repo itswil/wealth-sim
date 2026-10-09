@@ -31,6 +31,9 @@ function Slider({ param, label, value, display, hint, onChange }: SliderProps) {
         step={step}
         value={value}
         aria-describedby={hint ? hintId : undefined}
+        // Without this a screen reader announces the raw number ("0.05"),
+        // not the unit-bearing value the sighted label shows ("5.0% / yr").
+        aria-valuetext={display}
         onChange={(e) => onChange({ [param]: Number(e.target.value) } as Partial<WorldParams>)}
         className="mt-1 h-6 w-full accent-sky-600"
       />
@@ -91,33 +94,70 @@ function Section({ title, isWide, children }: SectionProps) {
 export interface ControlsProps {
   params: WorldParams;
   presetId: string;
+  /** Shown in the panel header so a run can be identified without the URL. */
+  seed: number;
   onChange: (patch: Partial<WorldParams>) => void;
   onPreset: (id: string) => void;
   onNewWorld: () => void;
   onReset: () => void;
+  /** Resolves true when the share URL reached the clipboard. */
+  onCopyLink: () => Promise<boolean>;
 }
+
+type CopyState = "idle" | "copied" | "error";
+
+const COPY_LABEL: Record<CopyState, string> = {
+  idle: "Copy link",
+  copied: "Copied!",
+  error: "Copy failed",
+};
+
+const COPY_STYLE: Record<CopyState, string> = {
+  idle: "border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700",
+  copied:
+    "border border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
+  error:
+    "border border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700 dark:bg-rose-500/10 dark:text-rose-300",
+};
 
 export const Controls = memo(function Controls({
   params,
   presetId,
+  seed,
   onChange,
   onPreset,
   onNewWorld,
   onReset,
+  onCopyLink,
 }: ControlsProps) {
   // One breakpoint, one listener: the panel is sticky and open at the lg
   // breakpoint and collapsible below it.
   const isWide = useMediaQuery("(min-width: 1024px)");
+  const [copyState, setCopyState] = useState<CopyState>("idle");
+  useEffect(() => {
+    if (copyState === "idle") return;
+    const t = setTimeout(() => setCopyState("idle"), 2000);
+    return () => clearTimeout(t);
+  }, [copyState]);
+  const handleCopyLink = async () => {
+    setCopyState((await onCopyLink()) ? "copied" : "error");
+  };
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:bg-slate-800">
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-          Simulation controls
-        </h2>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+            Simulation controls
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Seed <span className="font-semibold tabular-nums">{seed}</span>
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={onNewWorld}
+            title="Roll a new random seed — your slider settings stay the same"
             className="rounded-lg bg-sky-700 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors motion-reduce:transition-none hover:bg-sky-800"
           >
             New world
@@ -125,9 +165,18 @@ export const Controls = memo(function Controls({
           <button
             type="button"
             onClick={onReset}
+            title="Reset every slider and the seed to defaults"
             className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors motion-reduce:transition-none hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
           >
             Reset
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            title="Copy a URL that shares this exact world"
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors motion-reduce:transition-none ${COPY_STYLE[copyState]}`}
+          >
+            {COPY_LABEL[copyState]}
           </button>
         </div>
       </div>

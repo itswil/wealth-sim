@@ -14,7 +14,7 @@ By default returns are mildly **scale-dependent**, so larger portfolios earn mor
   - _Wealth over time_ — top 1% avg, mean, median, and bottom 50% avg per year, with direct line labels, a value readout for the active year, log/linear toggle, and playback progress bar.
   - _Wealth distribution_ — log-bucket histogram with the top 1% highlighted; hover or tap any bin for its range and count.
 - **Headline stats** — total/mean/median wealth, wealth-to-income ratio, Gini, top 1% / bottom 50% shares.
-- **Shareable URLs** — every parameter, seed, and year is serialized into the query string (debounced so playback doesn't flood the history API). Copy the URL to share an exact world.
+- **Shareable URLs** — every parameter, seed, and year is serialized into the query string (debounced so playback doesn't flood the history API). The controls panel shows the current seed, and its **Copy link** button puts a URL for the exact world on the clipboard.
 - **Dark mode** — follows your system preference live, toggleable, persisted, with no flash on load.
 - Colorblind-safe palette (Okabe-Ito) with distinct dash patterns per series.
 

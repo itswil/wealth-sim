@@ -161,6 +161,21 @@ function App() {
     setIsPlaying(false);
   }, []);
 
+  // Built fresh rather than read from the address bar: the URL sync is
+  // debounced, so location.href can lag a just-made change by up to 500ms.
+  const handleCopyLink = useCallback(async (): Promise<boolean> => {
+    const search = serializeWorldToSearch(params, seed, selectedYear);
+    const url = `${window.location.origin}${window.location.pathname}${search}`;
+    try {
+      if (!navigator.clipboard) return false;
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch (err) {
+      console.error("Could not copy share link:", err);
+      return false;
+    }
+  }, [params, seed, selectedYear]);
+
   const handleTogglePlay = useCallback(() => {
     if (isPlaying) {
       setIsPlaying(false);
@@ -194,8 +209,10 @@ function App() {
             <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
               Wealth Simulator
             </h1>
-            <p className="hidden text-sm text-slate-500 sm:block dark:text-slate-400">
-              A fixed 300-year run. Hover the timeline or pick a year to inspect that year's wealth.
+            {/* Visible at every width — it is the only onboarding text, and
+                "drag" reads on touch where "hover" would not. */}
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              A fixed 300-year run. Drag the timeline or pick a year to inspect that year's wealth.
             </p>
           </div>
           {/* Full width on mobile so the year scrubber stays easy to grab;
@@ -263,10 +280,12 @@ function App() {
               <Controls
                 params={params}
                 presetId={activePreset?.id ?? ""}
+                seed={seed}
                 onChange={handlePatch}
                 onPreset={handlePreset}
                 onNewWorld={handleNewWorld}
                 onReset={handleReset}
+                onCopyLink={handleCopyLink}
               />
             </aside>
             {/* Signals that the rail continues. Drawn only while the panel is
@@ -413,6 +432,9 @@ function App() {
                         <button
                           key={y}
                           type="button"
+                          // "0" alone reads as a raw number; the label keeps the
+                          // name descriptive while satisfying label-in-name.
+                          aria-label={y === 0 ? "Start (year 0)" : `Jump to year ${y}`}
                           onClick={() => {
                             setSelectedYear(y);
                             setHoverYear(null);
@@ -423,7 +445,7 @@ function App() {
                               : "border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                           }`}
                         >
-                          {y}
+                          {y === 0 ? "Start" : y}
                         </button>
                       ))}
                       <label className="ml-1 flex cursor-pointer select-none items-center gap-2">
